@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import os
 import shutil
 import subprocess
@@ -14,12 +13,12 @@ class CertPaths:
 
 
 class MicroDriveCertGenerator:
-    def __init__(
-        self,
+    def __init__(self,
         server_cn: str = "MicroDrive-Server",
         ca_cn: str = "MicroDrive-CA",
         pc_cn: str = "pc-client",
         esp32_cn: str = "esp32-client",
+        days: str = "3650",
         paths: CertPaths = CertPaths(),
     ):
         """
@@ -32,6 +31,7 @@ class MicroDriveCertGenerator:
         self.ca_cn = ca_cn
         self.pc_cn = pc_cn
         self.esp32_cn = esp32_cn
+        self.days = days
         self.paths = paths
 
         # File names (created in current working directory)
@@ -50,9 +50,22 @@ class MicroDriveCertGenerator:
         self.esp32_csr = "esp32_client_csr.pem"
         self.esp32_cert = "esp32_client_cert.pem"
 
-    # ------------------------- helpers -------------------------
+        self.all_files_list = [
+            self.ca_key,
+            self.ca_cert,
+            self.server_key,
+            self.server_csr,
+            self.server_cert,
+            self.pc_key,
+            self.pc_csr,
+            self.pc_cert,
+            self.esp32_key,
+            self.esp32_csr,
+            self.esp32_cert
+        ]
 
-    def _run(self, cmd: list[str]):
+
+    def _run(self, cmd: str):
         print(f"[RUN] {' '.join(cmd)}")
         subprocess.check_call(cmd)
 
@@ -65,160 +78,58 @@ class MicroDriveCertGenerator:
             os.makedirs(path, exist_ok=True)
             print(f"[OK] Ensured directory: {path}")
 
-    # ------------------------- steps ---------------------------
 
     def generate_ca(self):
         print("\n=== Generating CA (Certificate Authority) ===")
-        self._run(["openssl", "genrsa", "-out", self.ca_key, "4096"])
+        
+        self._run(f"openssl genrsa -out {self.ca_key} 4096")
 
-        subj = f"/C=IN/ST=HP/L=Home/O=MicroDrive/OU=CA/CN={self.ca_cn}"
-        self._run(
-            [
-                "openssl",
-                "req",
-                "-x509",
-                "-new",
-                "-nodes",
-                "-key",
-                self.ca_key,
-                "-sha256",
-                "-days",
-                "3650",
-                "-out",
-                self.ca_cert,
-                "-subj",
-                subj,
-            ]
-        )
+        cmd = f"openssl req -x509 -new -nodes -key {self.ca_key} -sha256 -days {self.days} -out {self.ca_cert} -subj /C=IN/ST=HP/L=Home/O=MicroDrive/OU=CA/CN={self.ca_cn}"
+        self._run(cmd)
 
     def generate_server_cert(self):
         print("\n=== Generating Server Certificate ===")
 
         # Server private key
-        self._run(["openssl", "genrsa", "-out", self.server_key, "4096"])
+        self._run(f"openssl genrsa -out {self.server_key} 4096")
 
-        # Server CSR
-        subj = f"/C=IN/ST=HP/L=Home/O=MicroDrive/OU=Server/CN={self.server_cn}"
-        self._run(
-            [
-                "openssl",
-                "req",
-                "-new",
-                "-key",
-                self.server_key,
-                "-out",
-                self.server_csr,
-                "-subj",
-                subj,
-            ]
-        )
+        # Server CSR        
+        cmd = f"openssl req -new -key {self.server_key} -out {self.server_csr} -subj /C=IN/ST=HP/L=Home/O=MicroDrive/OU=Server/CN={self.server_cn}"
+        self._run(cmd)
 
         # Sign server CSR
-        self._run(
-            [
-                "openssl",
-                "x509",
-                "-req",
-                "-in",
-                self.server_csr,
-                "-CA",
-                self.ca_cert,
-                "-CAkey",
-                self.ca_key,
-                "-CAcreateserial",
-                "-out",
-                self.server_cert,
-                "-days",
-                "3650",
-                "-sha256",
-            ]
-        )
+        cmd = f"openssl x509 -req -in {self.server_csr} -CA {self.ca_cert} -CAkey {self.ca_key} -CAcreateserial -out {self.server_cert} -days {self.days} -sha256"
+        self._run(cmd)
 
     def generate_pc_cert(self):
         print("\n=== Generating PC Client Certificate ===")
 
         # PC key
-        self._run(["openssl", "genrsa", "-out", self.pc_key, "4096"])
+        self._run(f"openssl genrsa -out {self.pc_key} 4096")
 
         # PC CSR
         subj = f"/C=IN/ST=HP/L=Home/O=MicroDrive/OU=Client/CN={self.pc_cn}"
-        self._run(
-            [
-                "openssl",
-                "req",
-                "-new",
-                "-key",
-                self.pc_key,
-                "-out",
-                self.pc_csr,
-                "-subj",
-                subj,
-            ]
-        )
+        cmd = f"openssl req -new -key {self.pc_key} -out {self.pc_csr} -subj {subj}"
+        self._run(cmd)
 
         # Sign PC CSR
-        self._run(
-            [
-                "openssl",
-                "x509",
-                "-req",
-                "-in",
-                self.pc_csr,
-                "-CA",
-                self.ca_cert,
-                "-CAkey",
-                self.ca_key,
-                "-CAcreateserial",
-                "-out",
-                self.pc_cert,
-                "-days",
-                "3650",
-                "-sha256",
-            ]
-        )
+        cmd = f"openssl x509 -req -in {self.pc_csr} -CA {self.ca_cert} -CAkey {self.ca_key} -CAcreateserial -out {self.pc_cert} -days {self.days} -sha256"
+        self._run(cmd)
 
     def generate_esp32_cert(self):
         print("\n=== Generating ESP32 Client Certificate ===")
 
         # ESP32 key
-        self._run(["openssl", "genrsa", "-out", self.esp32_key, "4096"])
+        self._run(f"openssl genrsa -out {self.esp32_key} 4096")
 
         # ESP32 CSR
         subj = f"/C=IN/ST=HP/L=Home/O=MicroDrive/OU=Client/CN={self.esp32_cn}"
-        self._run(
-            [
-                "openssl",
-                "req",
-                "-new",
-                "-key",
-                self.esp32_key,
-                "-out",
-                self.esp32_csr,
-                "-subj",
-                subj,
-            ]
-        )
+        cmd = f"openssl req -new -key {self.esp32_key} -out {self.esp32_csr} -subj {subj}"
+        self._run(cmd)
 
         # Sign ESP32 CSR
-        self._run(
-            [
-                "openssl",
-                "x509",
-                "-req",
-                "-in",
-                self.esp32_csr,
-                "-CA",
-                self.ca_cert,
-                "-CAkey",
-                self.ca_key,
-                "-CAcreateserial",
-                "-out",
-                self.esp32_cert,
-                "-days",
-                "3650",
-                "-sha256",
-            ]
-        )
+        cmd = f"openssl x509 -req -in {self.esp32_csr} -CA {self.ca_cert} -CAkey {self.ca_key} -CAcreateserial -out {self.esp32_cert} -days {self.days} -sha256"
+        self._run(cmd)
 
     def copy_certs(self):
         print("\n=== Copying Certificates Into Project Structure ===")
@@ -243,6 +154,14 @@ class MicroDriveCertGenerator:
         print(f"  -> {self.paths.pc_certs}")
         print(f"  -> {self.paths.esp32_certs}")
 
+    def clean_cwd(self):
+        #delete all unrequired file 
+        for file in self.all_files_list:
+            try:
+                os.remove(file)
+            except:
+                pass
+
     def run_all(self):
         self._ensure_dirs()
         self.generate_ca()
@@ -250,6 +169,7 @@ class MicroDriveCertGenerator:
         self.generate_pc_cert()
         self.generate_esp32_cert()
         self.copy_certs()
+
         print("\n🎉 Done! Certificates generated and placed in their folders.\n")
 
 
