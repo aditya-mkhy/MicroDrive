@@ -169,7 +169,7 @@ class MicroDriveCertGenerator:
         self.generate_pc_cert()
         self.generate_esp32_cert()
         self.copy_certs()
-
+        self.clean_cwd()
         print("\n🎉 Done! Certificates generated and placed in their folders.\n")
 
 
