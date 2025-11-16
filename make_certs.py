@@ -4,13 +4,13 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
-
+import binascii
 
 @dataclass
 class CertPaths:
     server_certs: str = "server/certs"
     pc_certs: str = "pc/certs"
-    esp32_certs: str = "esp32/certs"
+    esp32_certs: str = "esp32"
 
 
 class MicroDriveCertGenerator:
@@ -47,9 +47,9 @@ class MicroDriveCertGenerator:
         self.pc_csr = "pc_client_csr.pem"
         self.pc_cert = "pc_client_cert.pem"
 
-        self.esp32_key = "esp32_client_key.pem"
-        self.esp32_csr = "esp32_client_csr.pem"
-        self.esp32_cert = "esp32_client_cert.pem"
+        self.esp32_key = "esp32_client_key.der"
+        self.esp32_csr = "esp32_client_csr.der"
+        self.esp32_cert = "esp32_client_cert.der"
 
         self.all_files_list = [
             self.ca_key,
@@ -64,7 +64,6 @@ class MicroDriveCertGenerator:
             self.esp32_csr,
             self.esp32_cert,
             "ca_cert.srl",
-            
         ]
 
 
@@ -208,8 +207,12 @@ class MicroDriveCertGenerator:
                 "-new",
                 "-key",
                 self.esp32_key,
+                "-keyform",
+                "DER",
                 "-out",
                 self.esp32_csr,
+                "-outform",
+                "DER",
                 "-subj",
                 subj,
             ]
@@ -230,11 +233,27 @@ class MicroDriveCertGenerator:
                 "-CAcreateserial",
                 "-out",
                 self.esp32_cert,
+                "-outform",
+                "DER",
                 "-days",
                 self.days,
                 "-sha256",
             ]
         )
+
+    def __file_to_hex(self, path):
+        with open(path, "rb") as f:
+            return binascii.hexlify(f.read())
+
+    def create_esp32_certs(self):
+        print("Conveting esp32 cert to hex")
+        client_crt = self.__file_to_hex(self.pc_cert)
+        client_key = self.__file_to_hex(self.esp32_key)
+
+        with open(os.path.join(self.paths.pc_certs, "certs.py"), "w") as tf:
+            tf.write(f"client_crt = {client_crt}\n")
+            tf.write(f"client_key = {client_key}")
+
 
     def copy_certs(self):
         print("\n=== Copying Certificates Into Project Structure ===")
@@ -250,9 +269,11 @@ class MicroDriveCertGenerator:
         shutil.copy(self.pc_key, self.paths.pc_certs)
 
         # ESP32 side
-        shutil.copy(self.ca_cert, self.paths.esp32_certs)
-        shutil.copy(self.esp32_cert, self.paths.esp32_certs)
-        shutil.copy(self.esp32_key, self.paths.esp32_certs)
+        # shutil.copy(self.ca_cert, self.paths.esp32_certs)
+        # shutil.copy(self.esp32_cert, self.paths.esp32_certs)
+        # shutil.copy(self.esp32_key, self.paths.esp32_certs)
+        self.create_esp32_certs()
+
 
         print("\n[OK] All certs copied:")
         print(f"  -> {self.paths.server_certs}")
@@ -260,6 +281,7 @@ class MicroDriveCertGenerator:
         print(f"  -> {self.paths.esp32_certs}")
 
     def clean_cwd(self):
+        print("Cleaning the unwanted certs files")
         #delete all unrequired file 
         for file in self.all_files_list:
             try:
@@ -293,3 +315,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+  
