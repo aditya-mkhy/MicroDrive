@@ -8,13 +8,19 @@ import sys
 
 
 class MicroDriveRelayServer:
-    def __init__(self):
-        self.host: str = "0.0.0.0",
-        self.port: int = 9000,
-    
-        self.certfile: str =  "server_cert.pem"
-        self.keyfile: str = "server_key.pem"
-        self.cafile: str = "ca_cert.pem"
+    def __init__(
+        self,
+        host: str = "0.0.0.0",
+        port: int = 9000,
+        certfile: str = "server_cert.pem",
+        keyfile: str = "server_key.pem",
+        cafile: str = "ca_cert.pem",
+    ):
+        self.host = host
+        self.port = port
+        self.certfile = certfile
+        self.keyfile = keyfile
+        self.cafile = cafile
 
         # role -> {"sock": ssl_sock, "addr": (ip, port)}
         self.clients = {"pc": None, "esp32": None}
@@ -22,17 +28,24 @@ class MicroDriveRelayServer:
 
         self.ssl_ctx = self._create_ssl_context()
 
-    # ssl/tls
+        # expected CN for each role (must match make_cert.py CNs)
+        self.expected_cn = {
+            "pc": "pc-client",
+            "esp32": "esp32-client",
+        }
+
+    # ------------------------------------------------------------------ #
+    # SSL / TLS
+    # ------------------------------------------------------------------ #
     def _create_ssl_context(self) -> ssl.SSLContext:
         """
-        Create a TLS server context that:
+        TLS server context:
         - Uses server certificate + key
         - Requires client certificate signed by our CA
         """
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ctx.load_cert_chain(certfile=self.certfile, keyfile=self.keyfile)
 
-        # Require and verify client certificate
         ctx.verify_mode = ssl.CERT_REQUIRED
         ctx.check_hostname = False
         ctx.load_verify_locations(cafile=self.cafile)
@@ -105,22 +118,38 @@ class MicroDriveRelayServer:
         self._write_frame(sock, data)
 
     # ------------------------------------------------------------------ #
+    # Cert / CN helper
+    # ------------------------------------------------------------------ #
+    def _get_peer_cn(self, sock: ssl.SSLSocket) -> str | None:
+        """
+        Extract Common Name (CN) from client certificate, if present.
+        """
+        try:
+            peercert = sock.getpeercert()
+        except Exception as e:
+            print("    Error reading peer cert:", e)
+            return None
+
+        if not peercert:
+            print("    No peer certificate (unexpected with CERT_REQUIRED)")
+            return None
+
+        subject = dict(x[0] for x in peercert.get("subject", ()))
+        cn = subject.get("commonName")
+        return cn
+
+    # ------------------------------------------------------------------ #
     # Per-client handler
     # ------------------------------------------------------------------ #
     def _handle_client(self, sock: ssl.SSLSocket, addr):
         print(f"[+] New TLS connection from {addr}")
 
-        # Log client certificate CN if available
-        try:
-            peercert = sock.getpeercert()
-            if peercert:
-                subject = dict(x[0] for x in peercert.get("subject", ()))
-                cn = subject.get("commonName", "<no CN>")
-                print(f"    Client certificate CN: {cn}")
-            else:
-                print("    No peer certificate (unexpected with CERT_REQUIRED)")
-        except Exception as e:
-            print("    Error reading peer cert:", e)
+        # log CN (if any)
+        cn = self._get_peer_cn(sock)
+        if cn:
+            print(f"    Client certificate CN: {cn}")
+        else:
+            print("    Client certificate CN: <none>")
 
         role = None
 
@@ -141,6 +170,25 @@ class MicroDriveRelayServer:
                 self._send_json(sock, {"type": "error", "msg": "invalid_role"})
                 sock.close()
                 return
+
+            # 🔐 CN vs role check
+            expected_cn = self.expected_cn.get(role)
+            if expected_cn is not None:
+                if cn != expected_cn:
+                    print(
+                        f"[!] CN mismatch for role={role}: "
+                        f"got CN={cn!r}, expected CN={expected_cn!r}. Closing."
+                    )
+                    self._send_json(
+                        sock,
+                        {
+                            "type": "error",
+                            "msg": "cert_role_mismatch",
+                            "detail": f"expected CN={expected_cn}, got CN={cn}",
+                        },
+                    )
+                    sock.close()
+                    return
 
             # Only allow one client per role
             with self.clients_lock:
@@ -217,6 +265,8 @@ class MicroDriveRelayServer:
 
             print(f"[+] TLS relay server listening on {self.host}:{self.port}")
             print("    TLS + client certificate REQUIRED")
+            print("    Expected CNs -> pc:", self.expected_cn["pc"],
+                  " | esp32:", self.expected_cn["esp32"])
 
             try:
                 while True:
@@ -247,12 +297,14 @@ def main():
         except ValueError:
             pass
 
+    # If you run from server/ folder, adjust paths:
+    cert_dir = "certs"
     server = MicroDriveRelayServer(
         host=host,
         port=port,
-        certfile="server_cert.pem",
-        keyfile="server_key.pem",
-        cafile="ca_cert.pem",
+        certfile=f"{cert_dir}/server_cert.pem",
+        keyfile=f"{cert_dir}/server_key.pem",
+        cafile=f"{cert_dir}/ca_cert.pem",
     )
     server.serve_forever()
 
