@@ -3,6 +3,12 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# certs file
+esp32/certs/
+pc/certs/
+server/certs/
+
+
 # C extensions
 *.so
 
