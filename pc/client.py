@@ -17,65 +17,6 @@ import socket
 import getpass
 from typing import Optional
 
-# You need: pip install cryptography
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-
-# ===================== Encryption helpers =====================
-
-SALT_LEN = 16
-NONCE_LEN = 12
-KDF_ITERATIONS = 200_000
-KEY_LEN = 32  # 256-bit AES
-
-
-def derive_key(password: str, salt: bytes) -> bytes:
-    """Derive a 256-bit key from password+salt using PBKDF2-HMAC-SHA256."""
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=KEY_LEN,
-        salt=salt,
-        iterations=KDF_ITERATIONS,
-    )
-    return kdf.derive(password.encode("utf-8"))
-
-
-def encrypt_file_to_bytes(path: str, password: str) -> bytes:
-    """
-    Read a local file, encrypt its content with AES-256-GCM, and return:
-        SALT(16) + NONCE(12) + CIPHERTEXT+TAG
-    """
-    with open(path, "rb") as f:
-        plaintext = f.read()
-
-    salt = os.urandom(SALT_LEN)
-    key = derive_key(password, salt)
-    aesgcm = AESGCM(key)
-    nonce = os.urandom(NONCE_LEN)
-
-    ciphertext = aesgcm.encrypt(nonce, plaintext, None)
-    return salt + nonce + ciphertext
-
-
-def decrypt_bytes_to_file(data: bytes, password: str, out_path: str):
-    """
-    Given SALT(16) + NONCE(12) + CIPHERTEXT+TAG, decrypt and write to file.
-    """
-    if len(data) < SALT_LEN + NONCE_LEN + 16:
-        raise ValueError("Encrypted blob too short")
-
-    salt = data[:SALT_LEN]
-    nonce = data[SALT_LEN:SALT_LEN + NONCE_LEN]
-    ciphertext = data[SALT_LEN + NONCE_LEN :]
-
-    key = derive_key(password, salt)
-    aesgcm = AESGCM(key)
-    plaintext = aesgcm.decrypt(nonce, ciphertext, None)
-
-    with open(out_path, "wb") as f:
-        f.write(plaintext)
 
 
 # ===================== Client class =====================
