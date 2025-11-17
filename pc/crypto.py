@@ -62,6 +62,7 @@ class Crypto:
 
 
 
+
 if __name__ == "__main__":
     in_path = "C:\\Users\\mahad\\Downloads\\Git-2.51.2-64-bit.exe"
     out_path = "C:\\Users\\mahad\\Downloads\\Git-enc.exe"

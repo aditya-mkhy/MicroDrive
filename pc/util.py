@@ -15,6 +15,8 @@ def parse_command(line: str):
     args = parts[1:]
     return cmd, args
 
+def format_esp32_path(path: str) -> str:
+        return path.replace("/", "\\")
 
 def help_text() -> str:
 
@@ -34,6 +36,7 @@ def help_text() -> str:
     print(f"  {GREEN}rm {YELLOW}<path>{RESET}               - {YELLOW}remove remote file{RESET}")
     print(f"  {GREEN}mkdir {YELLOW}<path>{RESET}            - {YELLOW}create remote directory{RESET}")
     print(f"  {GREEN}exit{RESET} / {GREEN}quit{RESET}             - {YELLOW}exit the tool{RESET}")
+
 
 
 
