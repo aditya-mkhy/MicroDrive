@@ -10,6 +10,7 @@ server/certs/
 esp32/certs.py
 pc/client.py
 
+tempCodeRunnerFile.py
 
 # C extensions
 *.so
