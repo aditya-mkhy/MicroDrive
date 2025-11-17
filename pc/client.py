@@ -51,34 +51,6 @@ class MicroDrivePCClient:
         self.esp32_name = "microdrive"
         self.password: Optional[str] = None  # encryption password
 
-    def connect(self):
-        print(f"[+] Connecting to {self.host}:{self.port} over TLS...")
-        ctx = self._create_ssl_context()
-
-        raw_sock = socket.create_connection((self.host, self.port))
-        self.sock = raw_sock
-        self.sock = ctx.wrap_socket(raw_sock, server_hostname=self.host)
-        print("[+] TLS handshake completed")
-
-        # Send hello frame with role=pc
-        hello = {"role": "pc"}
-        self._send_json(hello)
-        print("[+] Sent role=pc to relay")
-
-        # Wait for status=ready (or peer_missing etc.)
-        print("[*] Waiting for ESP32 to connect...")
-        while True:
-            msg = self._recv_json()
-            if not msg:
-                raise ConnectionError("Connection closed while waiting for ready")
-            if msg.get("type") == "status":
-                state = msg.get("state")
-                print(f"[STATUS] {state}")
-                if state == "ready":
-                    break
-            # ignore others here
-
-        print("[+] PC ↔ ESP32 relay ready")
 
     # ---------- framing helpers ----------
 

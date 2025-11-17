@@ -3,6 +3,8 @@ import ssl
 import json
 import struct
 import os
+from typing import Optional
+from util import log
 
 class Network:
     def __init__(self, host: str, port: int, cert_dir: str= None, as_server: bool = None):
@@ -47,6 +49,10 @@ class Network:
         # this will be developed later
         self.as_server = as_server
 
+        # variables
+        self.prev_data = ""
+        self.conn: Optional[socket.socket] = None
+
         if as_server:
             self.certfile = os.path.join(cert_dir, "server_cert.pem")
             self.keyfile  = os.path.join(cert_dir, "server_key.pem")
@@ -80,13 +86,101 @@ class Network:
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_REQUIRED
         ctx.load_cert_chain(certfile=self.client_cert, keyfile=self.client_key)
-
         return ctx
     
+    def close(self):
+        print("Close")
+
+    def __get_one_msg(self, index: int):
+        # Extract one full message
+        json_str = self.prev_data[:index]
+        # Store leftover in buffer (may contain next messages)
+        self.prev_data = self.prev_data[index + 1:]
+        # Parse JSON safely
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            print("Invalid JSON received.")
+            return None
+    
+
+    def recv_json(self) -> Optional[dict]:
+        """
+        Receives a full JSON message terminated by the ASCII RS (0x1E).
+        """
+        # if a message is still in prev recv data
+        index = self.prev_data.find("\x1E")
+        if index != -1:
+            return self.__get_one_msg(index)
+        
+        try:
+            chunk = self.conn.recv(1024)
+        except Exception as e:
+            print(f"[RecvError] {e}")
+            self.close()
+            return None
+        
+        if not chunk:
+            print("Connection closed by the host.")
+            self.close()
+            return None
+
+        self.prev_data + chunk.decode()
+        index = self.prev_data.find("\x1E")
+
+        if index == -1: 
+            # return the data only when one message is found
+            return self.recv_json()
+        
+        return self.__get_one_msg(index)
+        
+
+    def send_json(self, obj: dict):
+        try:
+            self.conn.sendall(f"{json.dumps(obj)}\x1E".encode())
+        except Exception as e:
+            self.close()
+
+    
+    def _client_connect(self, ctx : ssl.SSLContext):
+        log(f"[+] Connecting to {self.host}:{self.port} over TLS...")
+        raw_sock = socket.create_connection((self.host, self.port))
+        self.sock = raw_sock
+        self.sock = ctx.wrap_socket(raw_sock, server_hostname=self.host)
+        log("[+] TLS handshake completed")
+    
+        # Send role=pc
+        self.send_json({"role": "pc"})
+        log("[+] Sent role=pc to relay server")
+
+        # Wait for status=ready (or peer_missing etc.)
+        log("[*] Waiting for ESP32 to connect...")
+
+        while True:
+            msg = self.recv_json()
+            if not msg:
+                raise ConnectionError("Connection closed while waiting for ready")
+            
+            if msg.get("type") == "status":
+                state = msg.get("state")
+                print(f"[STATUS] {state}")
+                if state == "ready":
+                    break
+            # ignore others here
+
+        log("[+] PC ↔ ESP32 relay ready")
+
     
     def connect(self, timeout: int = None):
-        pass
+        ctx = self._create_ssl_context()
         
 
 if __name__ == "__main__":
-    network = Network()
+    host = "localhost"
+    port = 9000
+    network = Network(host, port)
+    m = {"name": "Aditya"}
+    data = network.send_json(m)
+    network._read_frame(data)
+
+    

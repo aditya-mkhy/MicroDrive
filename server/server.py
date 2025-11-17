@@ -3,19 +3,23 @@ import socket
 import ssl
 import threading
 import json
-import struct
 import sys
+from typing import Optional
+from datetime import datetime
+
+def log(*args, save = True, **kwargs):
+    print(f" INFO [{datetime.now().strftime('%d-%m-%Y  %H:%M:%S')}] ", *args, **kwargs)
 
 
 class MicroDriveRelayServer:
-    def __init__(
-        self,
+    def __init__(self,
         host: str = "0.0.0.0",
         port: int = 9000,
         certfile: str = "server_cert.pem",
         keyfile: str = "server_key.pem",
         cafile: str = "ca_cert.pem",
     ):
+       
         self.host = host
         self.port = port
         self.certfile = certfile
@@ -33,6 +37,7 @@ class MicroDriveRelayServer:
             "pc": "pc-client",
             "esp32": "esp32-client",
         }
+
 
     # ------------------------------------------------------------------ #
     # SSL / TLS
@@ -89,43 +94,111 @@ class MicroDriveRelayServer:
             except Exception:
                 pass
 
-    # ------------------------------------------------------------------ #
-    # Framing helpers
-    # ------------------------------------------------------------------ #
-    def _read_exact(self, sock, n: int) -> bytes:
-        buf = b""
-        while len(buf) < n:
-            chunk = sock.recv(n - len(buf))
-            if not chunk:
-                raise ConnectionError("Socket closed")
-            buf += chunk
-        return buf
 
-    def _read_frame(self, sock) -> bytes:
-        """Length-prefixed frame: 4-byte big-endian length + payload."""
-        header = self._read_exact(sock, 4)
-        (length,) = struct.unpack("!I", header)
-        if length <= 0:
-            raise ConnectionError("Invalid frame length")
-        return self._read_exact(sock, length)
-
-    def _write_frame(self, sock, payload: bytes):
-        header = struct.pack("!I", len(payload))
-        sock.sendall(header + payload)
-
-    def _send_json(self, sock, obj: dict):
-        data = json.dumps(obj).encode()
-        self._write_frame(sock, data)
 
     # ------------------------------------------------------------------ #
+    # Main loop
+    # ------------------------------------------------------------------ #
+    def serve_forever(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0) as server_sock:
+            server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server_sock.bind((self.host, self.port))
+            server_sock.listen(5)
+
+            log(f"[+] TLS relay server listening on {self.host}:{self.port}")
+            log("    TLS + client certificate REQUIRED")
+            log("    Expected CNs -> pc:", self.expected_cn["pc"],
+                  " | esp32:", self.expected_cn["esp32"])
+
+            try:
+                while True:
+                    raw_sock, addr = server_sock.accept()
+                    try:
+                        tls_sock = self.ssl_ctx.wrap_socket(raw_sock, server_side=True)
+                    except ssl.SSLError as e:
+                        log(f"[!] TLS handshake failed from {addr}: {e}")
+                        raw_sock.close()
+                        continue
+
+                    t = threading.Thread(
+                        target=self._handle_client,
+                        args=(tls_sock, addr),
+                        daemon=True,
+                    )
+                    t.start()
+            except KeyboardInterrupt:
+                print("\n[!] Server stopped by user")
+
+
+class HandleClient:
+    def __init__(self, server: MicroDriveRelayServer, conn: ssl.SSLSocket, addr):
+        self.server = server
+        self.conn = conn
+        
+        # store uncomplete message
+        self.prev_data = ""
+
+        print(f"[+] New TLS connection from {addr}")
+
+
+
+    def __get_one_msg(self, index: int):
+        # Extract one full message
+        json_str = self.prev_data[:index]
+        # Store leftover in buffer (may contain next messages)
+        self.prev_data = self.prev_data[index + 1:]
+        # Parse JSON safely
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            print("Invalid JSON received.")
+            return None
+        
+    def recv_json(self, timeout: float = None) -> Optional[dict]:
+        """
+        Receives a full JSON message terminated by the ASCII RS (0x1E).
+        """
+        # if a message is still in prev recv data
+        index = self.prev_data.find("\x1E")
+        if index != -1:
+            return self.__get_one_msg(index)
+        
+        try:
+            chunk = self.conn.recv(1024)
+        except Exception as e:
+            print(f"[RecvError] {e}")
+            self.close()
+            return None
+        
+        if not chunk:
+            print("Connection closed by the host.")
+            self.close()
+            return None
+
+        self.prev_data + chunk.decode()
+        index = self.prev_data.find("\x1E")
+
+        if index == -1: 
+            # return the data only when one message is found
+            return self.recv_json()
+        
+        return self.__get_one_msg(index)
+    
+
+    def send_json(self, obj: dict):
+        try:
+            self.conn.sendall(f"{json.dumps(obj)}\x1E".encode())
+        except Exception as e:
+            self.close()
+
+    
     # Cert / CN helper
-    # ------------------------------------------------------------------ #
-    def _get_peer_cn(self, sock: ssl.SSLSocket) -> str | None:
+    def _get_peer_cn(self) -> str | None:
         """
         Extract Common Name (CN) from client certificate, if present.
         """
         try:
-            peercert = sock.getpeercert()
+            peercert = self.conn.getpeercert()
         except Exception as e:
             print("    Error reading peer cert:", e)
             return None
@@ -136,22 +209,23 @@ class MicroDriveRelayServer:
 
         subject = dict(x[0] for x in peercert.get("subject", ()))
         cn = subject.get("commonName")
-        return cn
 
-    # ------------------------------------------------------------------ #
-    # Per-client handler
-    # ------------------------------------------------------------------ #
-    def _handle_client(self, sock: ssl.SSLSocket, addr):
-        print(f"[+] New TLS connection from {addr}")
-
-        # log CN (if any)
-        cn = self._get_peer_cn(sock)
         if cn:
             print(f"    Client certificate CN: {cn}")
         else:
             print("    Client certificate CN: <none>")
 
+        return cn
+    
+    def _get_role(self):
+        hell
+
+    def handle(self):
+        # log CN (if any)
+        cn = self._get_peer_cn()
         role = None
+
+        hello = 
 
         try:
             # First frame: hello JSON with {"role": "pc" | "esp32"}
@@ -254,38 +328,9 @@ class MicroDriveRelayServer:
                     role, {"type": "status", "state": "peer_disconnected"}
                 )
 
-    # ------------------------------------------------------------------ #
-    # Main loop
-    # ------------------------------------------------------------------ #
-    def serve_forever(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0) as server_sock:
-            server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server_sock.bind((self.host, self.port))
-            server_sock.listen(5)
+        
 
-            print(f"[+] TLS relay server listening on {self.host}:{self.port}")
-            print("    TLS + client certificate REQUIRED")
-            print("    Expected CNs -> pc:", self.expected_cn["pc"],
-                  " | esp32:", self.expected_cn["esp32"])
 
-            try:
-                while True:
-                    raw_sock, addr = server_sock.accept()
-                    try:
-                        tls_sock = self.ssl_ctx.wrap_socket(raw_sock, server_side=True)
-                    except ssl.SSLError as e:
-                        print(f"[!] TLS handshake failed from {addr}: {e}")
-                        raw_sock.close()
-                        continue
-
-                    t = threading.Thread(
-                        target=self._handle_client,
-                        args=(tls_sock, addr),
-                        daemon=True,
-                    )
-                    t.start()
-            except KeyboardInterrupt:
-                print("\n[!] Server stopped by user")
 
 
 def main():
