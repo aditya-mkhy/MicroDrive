@@ -11,7 +11,7 @@ class Crypto:
         self.key_len = 32  # 256-bit AES
 
         # use one key for whole session
-        self.key = None
+        self.passwd = None
 
     def derive_key(self, passwd: str, salt: bytes) -> bytes:
         """Derive a 256-bit key from passwd+salt using PBKDF2-HMAC-SHA256."""
@@ -24,41 +24,41 @@ class Crypto:
         return kdf.derive(passwd.encode("utf-8"))
 
 
-    def encrypt_file_to_bytes(self, path: str, key: bytes = None) -> bytes:
+    def encrypt_file_to_bytes(self, path: str, passwd: str = None) -> bytes:
         """
         Read a local file, encrypt its content with AES-256-GCM, and return:
             SALT(16) + NONCE(12) + CIPHERTEXT+TAG
         """
 
-
         with open(path, "rb") as f:
             plaintext = f.read()
 
         salt = os.urandom(self.salt_len)
-        key = self.derive_key(passwd, salt)
+        key = self.derive_key(passwd or self.passwd, salt)
         aesgcm = AESGCM(key)
-        nonce = os.urandom(NONCE_LEN)
+        nonce = os.urandom(self.nonce_len)
 
         ciphertext = aesgcm.encrypt(nonce, plaintext, None)
         return salt + nonce + ciphertext
 
-def decrypt_bytes_to_file(data: bytes, passwd: str, out_path: str):
-    """
-    Given SALT(16) + NONCE(12) + CIPHERTEXT+TAG, decrypt and write to file.
-    """
-    if len(data) < SALT_LEN + NONCE_LEN + 16:
-        raise ValueError("Encrypted blob too short")
 
-    salt = data[:SALT_LEN]
-    nonce = data[SALT_LEN:SALT_LEN + NONCE_LEN]
-    ciphertext = data[SALT_LEN + NONCE_LEN :]
+    def decrypt_bytes_to_file(self, data: bytes, passwd: str, out_path: str):
+        """
+        Given SALT(16) + NONCE(12) + CIPHERTEXT+TAG, decrypt and write to file.
+        """
+        if len(data) < self.salt_len + self.nonce_len + 16:
+            raise ValueError("Encrypted blob too short")
 
-    key = derive_key(passwd, salt)
-    aesgcm = AESGCM(key)
-    plaintext = aesgcm.decrypt(nonce, ciphertext, None)
+        salt = data[:self.salt_len]
+        nonce = data[self.salt_len : self.salt_len + self.nonce_len]
+        ciphertext = data[self.salt_len + self.nonce_len :]
 
-    with open(out_path, "wb") as f:
-        f.write(plaintext)
+        key = self.derive_key(passwd or self.passwd, salt)
+        aesgcm = AESGCM(key)
+        plaintext = aesgcm.decrypt(nonce, ciphertext, None)
+
+        with open(out_path, "wb") as f:
+            f.write(plaintext)
 
 
 

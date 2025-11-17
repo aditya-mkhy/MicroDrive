@@ -15,7 +15,7 @@ import json
 import struct
 import socket
 import getpass
-from typing import Optional
+from typing import Optional, Tuple
 
 
 
@@ -388,7 +388,7 @@ class MicroDrivePCClient:
                 else:
                     local = args[0]
                     remote = args[1] if len(args) >= 2 else None
-                    self.cmd_put(local, remote)
+                    self.cmd_put(local, remote) 
             elif cmd == "get":
                 if not args:
                     print("Usage: get <remote_path> [local_file]")
@@ -406,35 +406,18 @@ class MicroDrivePCClient:
             except Exception:
                 pass
 
-    def _print_help(self):
-        print("Commands:")
-        print("  help                  - show this help")
-        print("  ls [path]             - list files in remote dir")
-        print("  cd <path>             - change remote directory")
-        print("  pwd                   - show remote current dir")
-        print("  put <local> [remote]  - encrypt+upload file to ESP32")
-        print("  get <remote> [local]  - download+decrypt file from ESP32")
-        print("  rm <path>             - remove remote file")
-        print("  mkdir <path>          - create remote directory")
-        print("  exit / quit           - exit client")
-
-
-# ===================== main =====================
-
-
-def main():
-    host = "127.0.0.1"
-    port = 9000
-
+def get_argv(host = "127.0.0.1", port = 9000) -> tuple[str, int]:
     if len(sys.argv) >= 2:
         host = sys.argv[1]
+
     if len(sys.argv) >= 3:
         port = int(sys.argv[2])
+
+    return host, port
+
+if __name__ == "__main__":
+    host, port = get_argv(host="localhost", port=9000)
 
     client = MicroDrivePCClient(host=host, port=port)
     client.connect()
     client.run_shell()
-
-
-if __name__ == "__main__":
-    main()
