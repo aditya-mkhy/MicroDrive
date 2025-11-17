@@ -16,7 +16,7 @@ import struct
 import socket
 import getpass
 from typing import Optional, Tuple
-from util import help_text, parse_command, format
+from util import help_text, parse_command, format_esp32_path
 
 
 
@@ -50,27 +50,6 @@ class MicroDrivePCClient:
         self.remote_cwd = "/sd"  # default remote root
         self.esp32_name = "microdrive"
         self.password: Optional[str] = None  # encryption password
-
-    # ---------- TLS connection ----------
-
-    def _create_ssl_context(self) -> ssl.SSLContext:
-        ctx = ssl.create_default_context(
-            ssl.Purpose.SERVER_AUTH,
-            cafile=self.ca_cert,
-        )
-        # We use our own CA, so hostname checking doesn't matter.
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_REQUIRED
-
-        ctx.load_cert_chain(
-            certfile=self.client_cert,
-            keyfile=self.client_key,
-        )
-
-        # Optional hardening:
-        # ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-
-        return ctx
 
     def connect(self):
         print(f"[+] Connecting to {self.host}:{self.port} over TLS...")

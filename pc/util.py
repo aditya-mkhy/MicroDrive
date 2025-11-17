@@ -16,7 +16,22 @@ def parse_command(line: str):
     return cmd, args
 
 def format_esp32_path(path: str) -> str:
-        return path.replace("/", "\\")
+    # Remove leading slash
+    if path.startswith("/"):
+        path = path[1:]
+    
+    parts = path.split("/")
+    
+    # First part becomes drive name + colon + backslash
+    drive = parts[0] + ":\\"
+    
+    # Remaining parts joined by backslashes
+    if len(parts) > 1:
+        rest = "\\".join(parts[1:])
+        return drive + rest
+    else:
+        return drive
+
 
 def help_text() -> str:
 
@@ -41,4 +56,5 @@ def help_text() -> str:
 
 
 if __name__ == "__main__":
-    help_text()
+    # help_text()
+    print(format_esp32_path("/sd"))

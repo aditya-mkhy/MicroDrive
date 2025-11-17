@@ -1,8 +1,8 @@
 import sys
 from typing import Optional, Tuple
 import os
-from util import help_text, parse_command, format
-
+from util import help_text, parse_command, format_esp32_path
+from network import Network
 
 
 class Admin:
@@ -14,23 +14,9 @@ class Admin:
         cert_dir   : directory containing ca_cert.pem, pc_client_cert.pem, pc_client_key.pem
         as_server  : start a local server and use it locally.. more secure
         """
+        # network ->
+        self.network = Network(host, port, cert_dir, as_server=as_server)
 
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        if cert_dir is None:
-            cert_dir = os.path.join(base_dir, "certs")
-
-        self.host = host
-        self.port = port
-        self.cert_dir = cert_dir
-
-        # this will be developed later
-        self.as_server = as_server
-
-        self.ca_cert = os.path.join(cert_dir, "ca_cert.pem")
-        self.client_cert = os.path.join(cert_dir, "pc_client_cert.pem")
-        self.client_key = os.path.join(cert_dir, "pc_client_key.pem")
-
-        # self.sock: Optional[ssl.SSLSocket] = None
         self.remote_cwd = "/sd"  # default remote root
         self.esp32_name = "microdrive"
         self.password: Optional[str] = None  # encryption password
@@ -75,16 +61,13 @@ class Admin:
 
 
 
-    # ---------- Shell ----------
+    # shell...
     def run_shell(self):
-        print("......... MicroDrive PC Client .........")
         print("Type 'help' for commands.\n")
-
-        self.remote_cwd = ""
 
         while True:
             try:
-                line = input(f"({self.esp32_name}) {self.remote_cwd} ~ ")
+                line = input(f"({self.esp32_name}) {format_esp32_path(self.remote_cwd)} ~ ")
             except (EOFError, KeyboardInterrupt):
                 break
 
@@ -99,7 +82,7 @@ class Admin:
             # commands
             self.handle_commands(cmd, args)
 
-        print("[*] Exiting shell")
+        print("Exiting shell")
         if self.sock:
             try:
                 self.sock.close()
