@@ -16,6 +16,7 @@ import struct
 import socket
 import getpass
 from typing import Optional, Tuple
+from util import help_text, parse_command
 
 
 
@@ -47,6 +48,7 @@ class MicroDrivePCClient:
 
         self.sock: Optional[ssl.SSLSocket] = None
         self.remote_cwd = "/sd"  # default remote root
+        self.esp32_name = "microdrive"
         self.password: Optional[str] = None  # encryption password
 
     # ---------- TLS connection ----------
@@ -136,20 +138,20 @@ class MicroDrivePCClient:
             return json.loads(payload.decode())
         except (UnicodeDecodeError, json.JSONDecodeError):
             return None
-
-    # ---------- path helpers ----------
-
+        
+    # path helpers
     def _resolve_remote_path(self, arg: Optional[str]) -> str:
         if not arg:
             return self.remote_cwd
+        
         if arg.startswith("/"):
             return arg
+        
         # join with current remote dir
         if self.remote_cwd.endswith("/"):
             return self.remote_cwd + arg
         return self.remote_cwd + "/" + arg
 
-    # ---------- commands ----------
 
     def cmd_ls(self, arg: Optional[str]):
         path = self._resolve_remote_path(arg)
@@ -176,15 +178,18 @@ class MicroDrivePCClient:
                 else:
                     print("[ERROR]", msg.get("error"))
                 return
+            
 
-    def cmd_cd(self, arg: Optional[str]):
-        if not arg:
-            print("[!] cd requires a path")
+    def cmd_cd(self, path: str):
+        if not path:
+            print("Usage: cd <path>")
             return
-        new_path = self._resolve_remote_path(arg)
-        # We'll just trust that dir exists, or we can probe via LIST
+        
+        self._send_json({"type": "cmd", "name": "CD", "path": path})
+        
         self.remote_cwd = new_path
         print("[*] Remote cwd:", self.remote_cwd)
+
 
     def cmd_pwd(self):
         print(self.remote_cwd)
@@ -342,62 +347,67 @@ class MicroDrivePCClient:
             chunks.append(payload)
             remaining -= len(payload)
         return b"".join(chunks)
+    
+    def handle_commands(self, cmd: str, args: list):
+        # handle the command...
+        if cmd == "help":
+            help_text()
+
+        elif cmd == "ls":
+            self.cmd_ls()
+
+        elif cmd == "cd":
+            path = args[0] if args else None
+            self.cmd_cd(path)
+
+        elif cmd == "pwd":
+            self.cmd_pwd()
+        elif cmd == "rm":
+            path = args[0] if args else None
+            self.cmd_rm(path)
+        elif cmd == "mkdir":
+            path = args[0] if args else None
+            self.cmd_mkdir(path)
+        elif cmd == "put":
+            if not args:
+                print("Usage: put <local_file> [remote_path]")
+            else:
+                local = args[0]
+                remote = args[1] if len(args) >= 2 else None
+                self.cmd_put(local, remote) 
+        elif cmd == "get":
+            if not args:
+                print("Usage: get <remote_path> [local_file]")
+            else:
+                remote = args[0]
+                local = args[1] if len(args) >= 2 else None
+                self.cmd_get(remote, local)
+        else:
+            print("[!] Unknown command:", cmd)
 
     # ---------- Shell ----------
-
     def run_shell(self):
-        print("=== MicroDrive PC Client ===")
-        print("Type 'help' for commands.")
-        print(f"Remote cwd: {self.remote_cwd}")
+        print("......... MicroDrive PC Client .........")
+        print("Type 'help' for commands.\n")
+
+        self.remote_cwd = ""
 
         while True:
             try:
-                line = input("microdrive> ").strip()
+                line = input(f"({self.esp32_name}) {self.remote_cwd} ~ ")
             except (EOFError, KeyboardInterrupt):
-                print()
                 break
 
             if not line:
                 continue
-
-            parts = line.split()
-            cmd = parts[0]
-            args = parts[1:]
+            # parse input
+            cmd, args = parse_command(line)
 
             if cmd in ("exit", "quit"):
                 break
-            elif cmd == "help":
-                self._print_help()
-            elif cmd == "ls":
-                path = args[0] if args else None
-                self.cmd_ls(path)
-            elif cmd == "cd":
-                path = args[0] if args else None
-                self.cmd_cd(path)
-            elif cmd == "pwd":
-                self.cmd_pwd()
-            elif cmd == "rm":
-                path = args[0] if args else None
-                self.cmd_rm(path)
-            elif cmd == "mkdir":
-                path = args[0] if args else None
-                self.cmd_mkdir(path)
-            elif cmd == "put":
-                if not args:
-                    print("Usage: put <local_file> [remote_path]")
-                else:
-                    local = args[0]
-                    remote = args[1] if len(args) >= 2 else None
-                    self.cmd_put(local, remote) 
-            elif cmd == "get":
-                if not args:
-                    print("Usage: get <remote_path> [local_file]")
-                else:
-                    remote = args[0]
-                    local = args[1] if len(args) >= 2 else None
-                    self.cmd_get(remote, local)
-            else:
-                print("[!] Unknown command:", cmd)
+
+            # commands
+            self.handle_commands(cmd, args)
 
         print("[*] Exiting shell")
         if self.sock:
@@ -419,5 +429,5 @@ if __name__ == "__main__":
     host, port = get_argv(host="localhost", port=9000)
 
     client = MicroDrivePCClient(host=host, port=port)
-    client.connect()
+    # client.connect()
     client.run_shell()
