@@ -63,10 +63,9 @@ class WiFi:
         try:
             self.station.disconnect()
             self.station.connect(ssid, passwd)
-            count = 0
             start_time = time()
-            log("[WiFi] Connecting.", end = "")
-            while self.station.status()==network.STAT_CONNECTING:
+            log("[WiFi] Connecting.", end="")
+            while self.station.status() == network.STAT_CONNECTING:
                 print(".", end="")
                 if (time()-start_time) > timeout:
                     log("\n[WiFi] Timeout Error", end = "")
