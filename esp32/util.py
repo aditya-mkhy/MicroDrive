@@ -78,7 +78,7 @@ class WiFi:
             self.ssid = ssid
 
             if status==network.STAT_WRONG_PASSWORD:
-                log("[WiFi] Wrong Password...")
+                log("[WiFi] Wrong Password")
 
         except Exception as e:
             log(f'Error[1] : {e}')

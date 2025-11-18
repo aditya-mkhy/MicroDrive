@@ -101,17 +101,22 @@ class Client:
         name = cmd.get("name")
         reply_msg = None
 
-        if name == "LIST":
+        if name == "ls":
             try:
                 info = self.drive.listdir()
-                reply_msg = {"type": "result", "ok": True, "items": info}
+                reply_msg = {"type": "result", "ok": True, "info": info}
 
             except:
                 reply_msg = {"type": "result", "ok": False, "error": "error"}
 
-        elif name == "CWD":
+        elif name == "cwd":
             cwd = self.drive.cwd
             reply_msg = {"type": "result", "ok": True, "cwd": cwd}
+
+        elif name == "cd":
+            to_path = cmd.get("to_path")
+            on_path = self.drive.chdir(path=to_path)
+            reply_msg = {"type": "result", "ok": True, "cwd": on_path}
 
         else:
             reply_msg = {"type": "result", "ok": False, "error": "unknown cmd"}

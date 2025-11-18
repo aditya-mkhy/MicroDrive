@@ -1,7 +1,7 @@
 import sys
 from typing import Optional, Tuple
 import os
-from util import help_text, parse_command, format_esp32_path
+from util import help_text, parse_command, format_esp32_path, format_size
 from network import Network
 
 
@@ -28,11 +28,11 @@ class Admin:
             help_text()
 
         elif cmd == "ls":
-            self.cmd_ls()
+            self._cmd_ls()
 
         elif cmd == "cd":
             path = args[0] if args else None
-            self.cmd_cd(path)
+            self._cmd_cd(path)
 
         elif cmd == "pwd":
             self.cmd_pwd()
@@ -59,16 +59,61 @@ class Admin:
         else:
             print("[!] Unknown command:", cmd)
 
-    def _set_remote_cwd(self):
-        self.network.send_json({"type": "cmd", "name": "CWD"})
+    def _print_files(self, info: list):
+        print("")
+        file_count = 0
+
+        for file in info:
+            size = file[1]
+            if size != "<DIR>":
+                size = format_size(size)
+                file_count += 1
+            print(file[0], " "*(25 -len(file[0])), size, " "*(10 - len(str(size))), file[2])
+
+        print(f"          Files : {file_count}")
+        print(f"        Folders : {len(info) - file_count}")
+
+
+    def _cmd_ls(self):
+        self.network.send_json({"type": "cmd", "name": "ls"})
         reply = self.network.recv_json()
-        is_result = reply.get("result")
-        if is_result:
+        reply_type = reply.get("type")
+        if reply_type == "result":
+            if not reply.get("ok"):
+                print(f"Error_In_Listing files : {reply.get("error")}")
+
+            info = reply.get("info")
+            self._print_files(info=info)
+
+        else:
+            print(f"Got invalid reply : {reply}")
+
+    def _cmd_cd(self, path: str):
+        if not path:
+            return
+        
+        self.network.send_json({"type": "cmd", "name": "cd", "to_path": path})
+        reply = self.network.recv_json()
+        reply_type = reply.get("type")
+        if reply_type == "result":
+            if not reply.get("ok"):
+                print(f"Error_In_CD : {reply.get("error")}")
+
+            self.remote_cwd = reply.get("cwd")
+
+        else:
+            print(f"Got invalid reply : {reply}")
+
+    def _set_remote_cwd(self):
+        self.network.send_json({"type": "cmd", "name": "cwd"})
+        reply = self.network.recv_json()
+        reply_type = reply.get("type")
+        if reply_type == "result":
             if not reply.get("ok"):
                 print(f"ErrorInRmPath : {reply.get("error")}")
 
             self.remote_cwd = reply.get("cwd")
-            print("remote cwd set...")
+            print("[Admin] remote cwd set...")
 
         else:
             print(f"Got invalid reply : {reply}")

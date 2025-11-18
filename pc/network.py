@@ -116,8 +116,7 @@ class Network:
             return self.__get_one_msg(index)
         
         try:
-            chunk = self.conn.recv(5)
-            print(f"chunk -> {chunk}")
+            chunk = self.conn.recv(1024)
         except Exception as e:
             print(f"[RecvError] {e}")
             self.close()
@@ -141,7 +140,6 @@ class Network:
     def send_json(self, obj: dict):
         try:
             self.conn.sendall(f"{json.dumps(obj)}\x1e".encode())
-            print(f"send -> {obj}")
         except Exception as e:
             self.close()
 
