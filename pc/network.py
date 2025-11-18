@@ -145,8 +145,8 @@ class Network:
     def _client_connect(self, ctx : ssl.SSLContext):
         log(f"[+] Connecting to {self.host}:{self.port} over TLS...")
         raw_sock = socket.create_connection((self.host, self.port))
-        self.sock = raw_sock
-        self.sock = ctx.wrap_socket(raw_sock, server_hostname=self.host)
+        self.conn = raw_sock
+        self.conn = ctx.wrap_socket(raw_sock, server_hostname=self.host)
         log("[+] TLS handshake completed")
     
         # Send role=pc
@@ -158,6 +158,7 @@ class Network:
 
         while True:
             msg = self.recv_json()
+            print(f"msg => {msg}")
             if not msg:
                 raise ConnectionError("Connection closed while waiting for ready")
             
@@ -173,14 +174,14 @@ class Network:
     
     def connect(self, timeout: int = None):
         ctx = self._create_ssl_context()
+        self._client_connect(ctx)
+        print("Done....")
         
 
 if __name__ == "__main__":
     host = "localhost"
     port = 9000
     network = Network(host, port)
-    m = {"name": "Aditya"}
-    data = network.send_json(m)
-    network._read_frame(data)
-
+    network.connect()
+    
     

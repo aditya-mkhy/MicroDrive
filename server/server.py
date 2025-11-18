@@ -39,9 +39,6 @@ class MicroDriveRelayServer:
         }
 
 
-    # ------------------------------------------------------------------ #
-    # SSL / TLS
-    # ------------------------------------------------------------------ #
     def _create_ssl_context(self) -> ssl.SSLContext:
         """
         TLS server context:
@@ -60,12 +57,6 @@ class MicroDriveRelayServer:
 
         return ctx
 
-    # ------------------------------------------------------------------ #
-    # Client management helpers
-    # ------------------------------------------------------------------ #
-    def _set_client(self, role: str, sock: ssl.SSLSocket, addr):
-        with self.clients_lock:
-            self.clients[role] = {"sock": sock, "addr": addr}
 
     def _get_other_role(self, role: str) -> str:
         return "esp32" if role == "pc" else "pc"
@@ -74,30 +65,7 @@ class MicroDriveRelayServer:
         with self.clients_lock:
             return self.clients.get(role)
 
-    def _clear_client_by_sock(self, sock):
-        removed_role = None
-        with self.clients_lock:
-            for role, info in self.clients.items():
-                if info is not None and info["sock"] is sock:
-                    self.clients[role] = None
-                    removed_role = role
-                    break
-        return removed_role
-
-    def _broadcast_status_to_other(self, role: str, status_obj: dict):
-        other = self._get_other_role(role)
-        other_sock = self._get_client_sock(other)
-        if other_sock:
-            try:
-                self._send_json(other_sock, status_obj)
-            except Exception:
-                pass
-
-
-
-    # ------------------------------------------------------------------ #
-    # Main loop
-    # ------------------------------------------------------------------ #
+ 
     def serve_forever(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0) as server_sock:
             server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -119,12 +87,10 @@ class MicroDriveRelayServer:
                         raw_sock.close()
                         continue
 
-                    t = threading.Thread(
-                        target=self._handle_client,
-                        args=(tls_sock, addr),
-                        daemon=True,
-                    )
+                    handler = HandleClient(server=self, conn=tls_sock, addr=addr)
+                    t = threading.Thread(target = handler.handle, daemon=True)
                     t.start()
+
             except KeyboardInterrupt:
                 print("\n[!] Server stopped by user")
 
@@ -197,9 +163,6 @@ class HandleClient:
             self.conn.sendall(f"{json.dumps(obj)}\x1E".encode())
         except Exception as e:
             self.close()
-
-    def close(self):
-        print(f"close")
 
     
     # Cert / CN helper
@@ -282,7 +245,29 @@ class HandleClient:
                     try:
                         handler_obj.send_json({"type": "status", "state": "ready"})
                     except Exception as e:
-                        print(f"[!] Failed to send ready to {rname}: {e}")
+                        log(f"[!] Failed to send ready to {rname}: {e}")
+
+    def close(self):
+        try:
+            self.conn.close()
+        except Exception:
+            pass
+
+        if not self.role:
+            return
+        
+        with self.server.clients_lock:
+            self.server.clients[self.role] = None
+
+        log(f"[*] Client role={self.role} removed")
+        # Notify other side
+        try:
+            other_role = self.server._get_other_role(self.role)
+            other_handler: HandleClient = self.server._get_client_obj(other_role)
+            other_handler.send_json({"type": "status", "state": "peer_disconnected"})
+        except Exception as e:
+            log(f"Error in notifying other by {self.role} : {e}")
+
 
     def _main_forwading(self):
         while True:
@@ -302,11 +287,12 @@ class HandleClient:
             try:
                 other_handler.send_raw(data)
             except Exception as e:
-                print(f"[!] Forward error {self.role}->{other_role}: {e}")
+                log(f"[!] Forward error {self.role}->{other_role}: {e}")
                 break
 
 
     def handle(self):
+        print("running handler...")
         # log CN (if any)
         cn = self._get_peer_cn()
         if not cn: return
@@ -317,40 +303,19 @@ class HandleClient:
         check = self._check_role_vs_cn(cn=cn, role=role)
         if not check: return # CN mismatch for role
 
-        self.role = role
-
-
         try:
+            self.role = role
             self._check_clients()
-
-          
+            self._main_forwading()
 
         except (ConnectionError, OSError) as e:
-            print(f"[-] {self.addr} disconnected: {e}")
+            log(f"[-] {self.addr} disconnected: {e}")
+
         except Exception as e:
-            print(f"[!] Error with {self.addr}: {e}")
+            log(f"[!] Error with {self.addr}: {e}")
+
         finally:
-            # cleanup
-            try:
-                sock.close()
-            except Exception:
-                pass
-
-            if role is None:
-                role = self._clear_client_by_sock(sock)
-            else:
-                self._clear_client_by_sock(sock)
-
-            if role:
-                print(f"[*] Client role={role} removed")
-                # Notify other side
-                self._broadcast_status_to_other(
-                    role, {"type": "status", "state": "peer_disconnected"}
-                )
-
-        
-
-
+            self.close()
 
 
 def main():
