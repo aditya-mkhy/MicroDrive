@@ -102,6 +102,8 @@ class Network:
         except json.JSONDecodeError:
             print("Invalid JSON received.")
             return None
+        
+    
     
 
     def recv_json(self) -> Optional[dict]:

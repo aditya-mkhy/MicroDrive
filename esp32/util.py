@@ -60,7 +60,7 @@ class WiFi:
 
             log(f"Status==> {status}")
             if status==network.STAT_WRONG_PASSWORD:
-                log("Wrong Passwd...")
+                log("[WiFi] Wrong Passwd...")
 
         except Exception as e:
             log(f'Error[1] : {e}')

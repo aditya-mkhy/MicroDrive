@@ -27,6 +27,8 @@ class Client:
         self.port = port
 
         self.drive = Drive(mount_point, sd_slot)
+        self.wifi = WiFi()
+        self.db = DB()
         self.conn: socket.socket = None
 
     def close(self):
@@ -107,7 +109,7 @@ class Client:
             reply_msg = {"type": "result", "ok": False, "error": "unknown cmd"}
 
         self.send_json(reply_msg)
-        
+
 
     def command_loop(self):
         # Command loop
@@ -142,6 +144,7 @@ class Client:
 
         self.conn = socket.socket()
         self.conn.connect(addr_info)
+        gc.collect()
 
         self.conn = ssl.wrap_socket(
             self.conn,
@@ -150,6 +153,7 @@ class Client:
             cert = binascii.unhexlify(certs.client_crt),
             key = binascii.unhexlify(certs.client_key)
         )
+        gc.collect()
 
         log("[NET] Connected to relay or user")
         # Send hello
@@ -196,10 +200,23 @@ if __name__ == "__main__":
 
     # change the cwd to mount_point
     client.drive._init_cwd()
+    ssid = client.db.get("ssid")
+    passwd = client.db.get("passwd")
 
     # run forever loop
     while True:
+
         try:
+            status = client.wifi.connect_to(ssid=ssid, passwd=passwd, timeout=120)
+            if not status:
+                time.sleep(20)
+                continue
+            
+            if client.wifi.is_online():
+                log("[Wifi] Connected to INTERNET")
+            else:
+                log("[Wifi] Not connected to INTERNET")
+
             client.connect()
             client.command_loop()
         except Exception as e:
