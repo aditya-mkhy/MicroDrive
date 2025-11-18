@@ -49,15 +49,15 @@ class WiFi:
 
         if not self.station.isconnected():
             status = self.connect_to(ssid, passwd, timeout)
-            if status:
-                return True
-            
-            time.sleep(20)
-            
+            if not status:
+                return False
+                        
         if self.is_online():
             log("[Wifi] Status: ONLINE")
         else:
             log("[Wifi] Status: OFFLINE")
+        
+        return True
     
     def connect_to(self, ssid, passwd, timeout=30):
         try:
