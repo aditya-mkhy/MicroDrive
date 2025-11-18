@@ -5,7 +5,7 @@
 # - Works with SD mounted at /sd
 
 import os
-import time
+from time import sleep
 import json
 try:
     import usocket as socket
@@ -208,23 +208,18 @@ if __name__ == "__main__":
 
     # change the cwd to mount_point
     client.drive._init_cwd()
-    ssid = client.db.get("ssid")
-    passwd = client.db.get("passwd")
+    client.wifi.ssid = client.db.get("ssid")
+    client.wifi.passwd = client.db.get("passwd")
 
     # run forever loop
     while True:
 
         try:
-            if not client.wifi.station.isconnected():
-                status = client.wifi.connect_to(ssid=ssid, passwd=passwd, timeout=120)
-                if not status:
-                    time.sleep(20)
-                    continue
-            
-            if client.wifi.is_online():
-                log("[Wifi] Status: ONLINE")
-            else:
-                log("[Wifi] Status: OFFLINE")
+            status = client.wifi.connect()
+            if not status:
+                sleep(20)
+                log(f"[WiFi] Attempting to reconnect to the {client.wifi.ssid}")
+                continue
 
             client.connect()
             client.command_loop()
@@ -232,4 +227,4 @@ if __name__ == "__main__":
             log("[MAIN] Error in client_loop :", e)
 
         log("[MAIN] Reconnecting in 10 seconds...")
-        time.sleep(10)
+        sleep(10)

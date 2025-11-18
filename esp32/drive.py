@@ -2,7 +2,7 @@
 import os
 import machine
 from util import log, path_exists, join_path
-import time
+from time import localtime
 
 
 class Drive:
@@ -55,7 +55,7 @@ class Drive:
 
     def _format_unix_time(self, t):
         # t = seconds since 1 Jan 1970
-        y, mo, d, h, mi, s, wd, yd = time.localtime(t)
+        y, mo, d, h, mi, s, wd, yd = localtime(t)
         ampm = "AM"
         h12 = h
         if h12 == 0:

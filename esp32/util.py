@@ -31,8 +31,8 @@ class WiFi:
 
     def is_online(self):
         try:
-            ai=usk.getaddrinfo('darkstartech.pythonanywhere.com',443,0,usk.SOCK_STREAM)[0]
-            s=usk.socket(ai[0],usk.SOCK_STREAM,ai[2])
+            ai = usk.getaddrinfo('darkstartech.pythonanywhere.com', 443, 0, usk.SOCK_STREAM)[0]
+            s = usk.socket(ai[0], usk.SOCK_STREAM, ai[2])
             s.connect(ai[-1])
             s.close()
             self.online = True
