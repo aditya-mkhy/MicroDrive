@@ -207,10 +207,11 @@ if __name__ == "__main__":
     while True:
 
         try:
-            status = client.wifi.connect_to(ssid=ssid, passwd=passwd, timeout=120)
-            if not status:
-                time.sleep(20)
-                continue
+            if not client.wifi.station.isconnected():
+                status = client.wifi.connect_to(ssid=ssid, passwd=passwd, timeout=120)
+                if not status:
+                    time.sleep(20)
+                    continue
             
             if client.wifi.is_online():
                 log("[Wifi] Connected to INTERNET")
@@ -222,5 +223,5 @@ if __name__ == "__main__":
         except Exception as e:
             log("[MAIN] Error in client_loop :", e)
 
-        log("[MAIN] Reconnecting in 5 seconds...")
-        time.sleep(5)
+        log("[MAIN] Reconnecting in 10 seconds...")
+        time.sleep(10)

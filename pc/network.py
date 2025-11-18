@@ -177,7 +177,6 @@ class Network:
     def connect(self, timeout: int = None):
         ctx = self._create_ssl_context()
         self._client_connect(ctx)
-        print("Done....")
         
 
 if __name__ == "__main__":

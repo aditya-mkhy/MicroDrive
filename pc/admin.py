@@ -59,12 +59,26 @@ class Admin:
         else:
             print("[!] Unknown command:", cmd)
 
+    def _set_remote_cwd(self):
+        self.network.send_json({"type": "cmd", "name": "CWD"})
+        reply = self.network.recv_json()
+        is_result = reply.get("result")
+        if is_result:
+            if not reply.get("ok"):
+                print(f"ErrorInRmPath : {reply.get("error")}")
 
+            self.remote_cwd = reply.get("cwd")
+            print("remote cwd set...")
+
+        else:
+            print(f"Got invalid reply : {reply}")
+        
 
     # shell...
     def run_shell(self):
         print("Type 'help' for commands.\n")
-
+        self._set_remote_cwd()
+        
         while True:
             try:
                 line = input(f"({self.esp32_name}) {format_esp32_path(self.remote_cwd)} ~ ")
@@ -106,7 +120,7 @@ if __name__ == "__main__":
     host, port = get_argv(host="localhost", port=9000)
 
     admin = Admin(host=host, port=port)
-    # client.connect()
+    admin.network.connect()
     admin.run_shell()
     
 
