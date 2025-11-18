@@ -1,19 +1,5 @@
-# MicroDrive ESP32 Client (MicroPython)
-#
-# - Connects to MicroDrive relay server (EC2)
-# - Sends {"role": "esp32"} as hello
-# - Waits for commands from PC:
-#     LIST, PUT, GET, RM, MKDIR
-# - Uses length-prefixed frames (4 bytes big-endian + payload)
-# - Works with SD mounted at /sd
-#
-# TLS NOTE:
-#   This example uses plain TCP by default because many MicroPython builds
-#   don't fully support client certificates with ussl.
-#   If your firmware supports it, see the TLS example near the top.
 
 import os
-import sys
 import time
 
 try:
@@ -35,7 +21,6 @@ import ubinascii as binascii
 import ssl
 import certs
 import gc
-# ---------- CONFIG ----------
 
 SERVER_HOST = "192.168.1.25"   # e.g. "3.123.45.67"
 SERVER_PORT = 9000
@@ -46,52 +31,6 @@ SD_MOUNT_POINT = "/sd"
 SD_SLOT = 1
 
 
-# ---------- OPTIONAL TLS (depends on your MicroPython build) ----------
-# If your firmware supports ussl with cert/key/ca, you can try:
-#
-# import ussl
-#
-# def _wrap_tls(sock):
-#     # These paths assume you uploaded certs to /certs on the board
-#     # AND your ussl.wrap_socket supports these kwargs (many builds do NOT).
-#     return ussl.wrap_socket(
-#         sock,
-#         server_hostname=SERVER_HOST,
-#         # certfile="/certs/esp32_client_cert.pem",
-#         # keyfile="/certs/esp32_client_key.pem",
-#         # ca_certs="/certs/ca_cert.pem",
-#     )
-#
-# For now, _wrap_tls just returns the plain socket.
-
-def _wrap_tls(sock):
-    # Plain socket for compatibility
-    return sock
-
-
-# ---------- SD MOUNT ----------
-
-def mount_sd():
-    if not MOUNT_SD or machine is None:
-        return
-
-    try:
-        # avoid mounting twice
-        if SD_MOUNT_POINT in os.listdir("/"):
-            return
-    except OSError:
-        pass
-
-    try:
-        sd = machine.SDCard(slot=SD_SLOT)
-        os.mount(sd, SD_MOUNT_POINT)
-        print("[SD] Mounted at", SD_MOUNT_POINT)
-        print("[SD] Root contents:", os.listdir(SD_MOUNT_POINT))
-    except Exception as e:
-        print("[SD] Failed to mount SD:", e)
-
-
-# ---------- framing helpers ----------
 
 def read_exact(sock, n):
     buf = b""

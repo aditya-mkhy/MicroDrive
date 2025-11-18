@@ -4,7 +4,7 @@ import ssl
 import threading
 import json
 import sys
-from typing import Optional
+from typing import Optional, Dict
 from datetime import datetime
 
 def log(*args, save = True, **kwargs):
@@ -27,7 +27,7 @@ class MicroDriveRelayServer:
         self.cafile = cafile
 
         # role -> {"sock": ssl_sock, "addr": (ip, port)}
-        self.clients = {"pc": None, "esp32": None}
+        self.clients: Dict[str, HandleClient] = {"pc": None, "esp32": None}
         self.clients_lock = threading.Lock()
 
         self.ssl_ctx = self._create_ssl_context()

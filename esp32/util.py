@@ -1,10 +1,8 @@
 import network 
 from time import time, sleep, localtime as loct
-from json import loads
 import usocket as usk
 import json
 import os
-
 import ntptime
 import utime
 import machine
@@ -83,21 +81,32 @@ class WiFi:
             return wifi_list
         except:
             return wifi_list
-        
-def exists(path):
+
+# ---  os.path function
+def join_path(base, *paths):
+    # Remove trailing slash from base
+    if base.endswith("/"):
+        base = base[:-1]
+
+    for p in paths:
+        if p.startswith("/"):
+            p = p[1:]
+        base = base + "/" + p
+    return base
+
+def path_exists(path):
     try:
         os.stat(path)
         return True
     except OSError:
         return False
-
-
+    
 class DB(dict):
     def __init__(self, file: str = "db.json"):
         super().__init__()
         self.file = file
 
-        if exists(self.file):
+        if path_exists(self.file):
             self.__read()
             return
         
@@ -147,7 +156,7 @@ def update_time():
             local_time[0], local_time[1], local_time[2],
             local_time[3], local_time[4], local_time[5]
         )
-        log("🕒 Local Time:", formatted_time)
+        log("Local Time:", formatted_time)
         
         # (optional) write local time into RTC instead of UTC
         rtc = machine.RTC()

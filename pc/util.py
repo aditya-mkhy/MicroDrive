@@ -57,7 +57,16 @@ def help_text() -> str:
     print(f"  {GREEN}exit{RESET} / {GREEN}quit{RESET}             - {YELLOW}exit the tool{RESET}")
 
 
-
+def format_size(size):
+    units = ["Bytes", "KB", "MB", "GB", "TB", "PB"]
+    i = 0
+    while size >= 900 and i < len(units) - 1:
+        size /= 1024
+        i += 1
+    unit = units[i][:-1] if size == 1 else units[i]
+    val = round(size, 2) if size < 10 else int(size)
+    return f"{val} {unit}"
+    
 
 if __name__ == "__main__":
     # help_text()
