@@ -13,6 +13,9 @@ class Drive:
 
         self._dir_code = 16384
         self._file_code = 32768
+        
+    def _init_cwd(self):
+        os.chdir(self.mount_point)
 
     # mount sd card 
     def mount(self, unmount = False):
@@ -35,7 +38,7 @@ class Drive:
             sd = machine.SDCard(slot=self.sd_slot, width=1)
             #mount
             os.mount(sd, self.mount_point)
-            log("[SD] Mounted at", self.mount_point)
+            log(f"[SD] Mounted at {self.mount_point!r}")
             return True
         
         except Exception as e:
@@ -76,14 +79,10 @@ class Drive:
         return [mtime, stat_info[6], path]
     
     
-    def listdir(self, path = None):
-        if path:
-            files_list = os.listdir(path)
-        else:
-            files_list = os.listdir(path)
+    def listdir(self):
+        files_list = os.listdir()
 
         info = []
-
         for file in files_list:
             info.append(self._file_info(file))
 
@@ -109,5 +108,19 @@ class Drive:
             return True
         except:
             return
-
         
+    def remove(self, path: str):
+        if path == self.mount_point:
+            return 
+        try:
+            os.remove(path)
+            return True
+        except:
+            return
+        
+    def get_cwd(self):
+        cwd = os.getcwd()
+        if not cwd.startswith(self.mount_point):
+            self._init_cwd()
+            cwd = os.getcwd()
+        return cwd
