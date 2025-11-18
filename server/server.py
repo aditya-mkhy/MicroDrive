@@ -70,10 +70,9 @@ class MicroDriveRelayServer:
     def _get_other_role(self, role: str) -> str:
         return "esp32" if role == "pc" else "pc"
 
-    def _get_client_sock(self, role: str):
+    def _get_client_obj(self, role: str):
         with self.clients_lock:
-            info = self.clients.get(role)
-            return info["sock"] if info is not None else None
+            return self.clients.get(role)
 
     def _clear_client_by_sock(self, sock):
         removed_role = None
@@ -134,9 +133,11 @@ class HandleClient:
     def __init__(self, server: MicroDriveRelayServer, conn: ssl.SSLSocket, addr):
         self.server = server
         self.conn = conn
+        self.addr = addr
         
         # store uncomplete message
         self.prev_data = ""
+        self.role = None
 
         print(f"[+] New TLS connection from {addr}")
 
@@ -153,6 +154,12 @@ class HandleClient:
         except json.JSONDecodeError:
             print("Invalid JSON received.")
             return None
+        
+    def send_raw(self,  data, flags=0):
+        self.conn.sendall(data, flags=flags)
+
+    def recv_raw(self, buflen: int = 1024, flags=0):
+        self.conn.recv(buflen, flags)
         
     def recv_json(self, timeout: float = None) -> Optional[dict]:
         """
@@ -191,6 +198,9 @@ class HandleClient:
         except Exception as e:
             self.close()
 
+    def close(self):
+        print(f"close")
+
     
     # Cert / CN helper
     def _get_peer_cn(self) -> str | None:
@@ -200,115 +210,125 @@ class HandleClient:
         try:
             peercert = self.conn.getpeercert()
         except Exception as e:
-            print("    Error reading peer cert:", e)
+            log("    Error reading peer cert:", e)
             return None
 
         if not peercert:
-            print("    No peer certificate (unexpected with CERT_REQUIRED)")
+            log("    No peer certificate (unexpected with CERT_REQUIRED)")
             return None
 
         subject = dict(x[0] for x in peercert.get("subject", ()))
         cn = subject.get("commonName")
 
-        if cn:
-            print(f"    Client certificate CN: {cn}")
-        else:
-            print("    Client certificate CN: <none>")
-
+        if not cn:
+            log(f"[!] {self.addr} commonName not found, closing")
+            self.send_json({"type": "error", "msg": "no_cn"})
+            self.close()
+            return
+            
+        log(f"Client certificate CN: {cn}")
         return cn
     
-    def _get_role(self):
-        hell
+    def _get_role(self) -> str | None:
+        # First msg: hello JSON with {"role": "pc" | "esp32"}
+        hello = self.recv_json(timeout=5)
+
+        if not hello:
+            log(f"[!] {self.addr} sent invalid hello JSON, closing")
+            self.send_json({"type": "error", "msg": "invalid_hello"})
+            self.close()
+            return
+                    
+        role = hello.get("role")
+        if role not in ("pc", "esp32"):
+            log(f"[!] {self.addr} invalid role={role}, closing")
+            self.send_json({"type": "error", "msg": "invalid_role"})
+            self.close()
+            return
+        
+        return role
+    
+    # CN vs role check
+    def _check_role_vs_cn(self, cn: str, role: str) -> bool | None:
+        expected_cn = self.server.expected_cn.get(role)
+            
+        if cn != expected_cn:
+            log(f"[!] CN mismatch for role={role}: ")
+            log(f"got CN={cn!r}, expected CN={expected_cn!r}. Closing.")
+
+            self.send_json({"type": "error", "msg": "cert_role_mismatch"})
+            self.close()
+            return
+        
+        return True
+    
+    def _check_clients(self):
+        # Only allow one client per role
+        with self.server.clients_lock:
+            if self.server.clients[self.role] is not None:
+                log(f"[!] {self.role} already connected, rejecting {self.addr}")
+                self.send_json({"type": "error", "msg": "role_already_connected"})
+                self.close()
+                return
+            self.server.clients[self.role] = self
+            
+        log(f"[+] {self.role} registered from {self.addr}")
+
+        # If both sides are present, notify them they are ready
+        with self.server.clients_lock:
+            if self.server.clients["pc"] is not None and self.server.clients["esp32"] is not None:
+                log("[*] Both pc and esp32 connected, sending ready status")
+                for rname, handler_obj in self.server.clients.items():
+                    try:
+                        handler_obj.send_json({"type": "status", "state": "ready"})
+                    except Exception as e:
+                        print(f"[!] Failed to send ready to {rname}: {e}")
+
+    def _main_forwading(self):
+        while True:
+            data = self.recv_raw(1024)
+            other_role = self.server._get_other_role(self.role)
+            other_handler: HandleClient = self.server._get_client_obj(other_role)
+
+            if other_handler is None:
+                # Other side missing – tell this client
+                try:
+                    self.send_json({"type": "status", "state": "peer_missing"})
+                except Exception:
+                    pass
+
+                continue
+
+            try:
+                other_handler.send_raw(data)
+            except Exception as e:
+                print(f"[!] Forward error {self.role}->{other_role}: {e}")
+                break
+
 
     def handle(self):
         # log CN (if any)
         cn = self._get_peer_cn()
-        role = None
+        if not cn: return
+        
+        role = self._get_role()
+        if not role:return # invalid role...
 
-        hello = 
+        check = self._check_role_vs_cn(cn=cn, role=role)
+        if not check: return # CN mismatch for role
+
+        self.role = role
+
 
         try:
-            # First frame: hello JSON with {"role": "pc" | "esp32"}
-            hello_raw = self._read_frame(sock)
-            try:
-                hello = json.loads(hello_raw.decode())
-            except Exception:
-                print(f"[!] {addr} sent invalid hello JSON, closing")
-                self._send_json(sock, {"type": "error", "msg": "invalid_hello"})
-                sock.close()
-                return
+            self._check_clients()
 
-            role = hello.get("role")
-            if role not in ("pc", "esp32"):
-                print(f"[!] {addr} invalid role={role}, closing")
-                self._send_json(sock, {"type": "error", "msg": "invalid_role"})
-                sock.close()
-                return
-
-            # 🔐 CN vs role check
-            expected_cn = self.expected_cn.get(role)
-            if expected_cn is not None:
-                if cn != expected_cn:
-                    print(
-                        f"[!] CN mismatch for role={role}: "
-                        f"got CN={cn!r}, expected CN={expected_cn!r}. Closing."
-                    )
-                    self._send_json(
-                        sock,
-                        {
-                            "type": "error",
-                            "msg": "cert_role_mismatch",
-                            "detail": f"expected CN={expected_cn}, got CN={cn}",
-                        },
-                    )
-                    sock.close()
-                    return
-
-            # Only allow one client per role
-            with self.clients_lock:
-                if self.clients[role] is not None:
-                    print(f"[!] {role} already connected, rejecting {addr}")
-                    self._send_json(sock, {"type": "error", "msg": "role_already_connected"})
-                    sock.close()
-                    return
-                self.clients[role] = {"sock": sock, "addr": addr}
-
-            print(f"[+] {role} registered from {addr}")
-
-            # If both sides are present, notify them they are ready
-            with self.clients_lock:
-                if self.clients["pc"] is not None and self.clients["esp32"] is not None:
-                    print("[*] Both pc and esp32 connected, sending ready status")
-                    for rname, info in self.clients.items():
-                        try:
-                            self._send_json(info["sock"], {"type": "status", "state": "ready"})
-                        except Exception as e:
-                            print(f"[!] Failed to send ready to {rname}: {e}")
-
-            # Main forwarding loop
-            while True:
-                payload = self._read_frame(sock)  # blocks
-                other_role = self._get_other_role(role)
-                other_sock = self._get_client_sock(other_role)
-
-                if other_sock is None:
-                    # Other side missing – tell this client
-                    try:
-                        self._send_json(sock, {"type": "status", "state": "peer_missing"})
-                    except Exception:
-                        pass
-                    continue
-
-                try:
-                    self._write_frame(other_sock, payload)
-                except Exception as e:
-                    print(f"[!] Forward error {role}->{other_role}: {e}")
-                    break
+          
 
         except (ConnectionError, OSError) as e:
-            print(f"[-] {addr} disconnected: {e}")
+            print(f"[-] {self.addr} disconnected: {e}")
         except Exception as e:
-            print(f"[!] Error with {addr}: {e}")
+            print(f"[!] Error with {self.addr}: {e}")
         finally:
             # cleanup
             try:
