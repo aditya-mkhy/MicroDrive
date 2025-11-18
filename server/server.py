@@ -125,19 +125,20 @@ class HandleClient:
         self.conn.sendall(data, flags=flags)
 
     def recv_raw(self, buflen: int = 1024, flags=0):
-        self.conn.recv(buflen, flags)
+        return self.conn.recv(buflen, flags)
         
     def recv_json(self, timeout: float = None) -> Optional[dict]:
         """
         Receives a full JSON message terminated by the ASCII RS (0x1E).
         """
         # if a message is still in prev recv data
-        index = self.prev_data.find("\x1E")
+        index = self.prev_data.find("\x1e")
         if index != -1:
             return self.__get_one_msg(index)
         
         try:
-            chunk = self.conn.recv(1024)
+            chunk = self.conn.recv(5)
+            print(f"chink => {chunk}")
         except Exception as e:
             print(f"[RecvError] {e}")
             self.close()
@@ -148,11 +149,12 @@ class HandleClient:
             self.close()
             return None
 
-        self.prev_data + chunk.decode()
-        index = self.prev_data.find("\x1E")
+        self.prev_data += chunk.decode()
+        index = self.prev_data.find("\x1e")
 
         if index == -1: 
             # return the data only when one message is found
+            print(f"\x1e not in data : {self.prev_data}")
             return self.recv_json()
         
         return self.__get_one_msg(index)
@@ -160,7 +162,8 @@ class HandleClient:
 
     def send_json(self, obj: dict):
         try:
-            self.conn.sendall(f"{json.dumps(obj)}\x1E".encode())
+            self.conn.sendall(f"{json.dumps(obj)}\x1e".encode())
+            print(f"senddata-> {self.role} : {obj}")
         except Exception as e:
             self.close()
 
@@ -193,8 +196,10 @@ class HandleClient:
         return cn
     
     def _get_role(self) -> str | None:
+        print(f"Recving....")
         # First msg: hello JSON with {"role": "pc" | "esp32"}
         hello = self.recv_json(timeout=5)
+        print(f"Recvhello : {hello}")
 
         if not hello:
             log(f"[!] {self.addr} sent invalid hello JSON, closing")
@@ -209,6 +214,7 @@ class HandleClient:
             self.close()
             return
         
+        print(f"my_role => {role}")
         return role
     
     # CN vs role check
@@ -236,6 +242,7 @@ class HandleClient:
             self.server.clients[self.role] = self
             
         log(f"[+] {self.role} registered from {self.addr}")
+        log(f"[@] connected_clients => {self.server.clients}")
 
         # If both sides are present, notify them they are ready
         with self.server.clients_lock:
@@ -243,6 +250,7 @@ class HandleClient:
                 log("[*] Both pc and esp32 connected, sending ready status")
                 for rname, handler_obj in self.server.clients.items():
                     try:
+                        print(f"rname > {rname}")
                         handler_obj.send_json({"type": "status", "state": "ready"})
                     except Exception as e:
                         log(f"[!] Failed to send ready to {rname}: {e}")
@@ -272,11 +280,15 @@ class HandleClient:
     def _main_forwading(self):
         while True:
             data = self.recv_raw(1024)
+            print(f"data_recvd [{self.role}]=> {data}")
             other_role = self.server._get_other_role(self.role)
+            print(f"[{self.role}] other_role => {other_role}")
             other_handler: HandleClient = self.server._get_client_obj(other_role)
+            print(f"[{self.role}] other_handler => {other_handler}")
 
             if other_handler is None:
                 # Other side missing – tell this client
+                print(f"[{self.role}] othe role not found...")
                 try:
                     self.send_json({"type": "status", "state": "peer_missing"})
                 except Exception:
@@ -286,6 +298,7 @@ class HandleClient:
 
             try:
                 other_handler.send_raw(data)
+                print(f"[{self.role}] send data to other role : {other_role} :=> {data}")
             except Exception as e:
                 log(f"[!] Forward error {self.role}->{other_role}: {e}")
                 break
@@ -299,13 +312,18 @@ class HandleClient:
         
         role = self._get_role()
         if not role:return # invalid role...
+        print(f"halde_role -> {role}")
 
         check = self._check_role_vs_cn(cn=cn, role=role)
+        print(f"check_status : {check}")
         if not check: return # CN mismatch for role
+        print("Everting is verified...")
 
         try:
             self.role = role
+            print(f"Now, checking clients....")
             self._check_clients()
+            print(f"Now forwaring...")
             self._main_forwading()
 
         except (ConnectionError, OSError) as e:

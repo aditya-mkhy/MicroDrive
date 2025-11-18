@@ -53,14 +53,19 @@ class Client:
 
 
     def _recv_util(self) -> bytes | None:
+        print("recv_initl_is called")
         data = b""
 
         while True:
             try:
-                buf = self.conn.recv()
+                buf = self.conn.recv(1)
+                log(f"buf -> {buf}")
+                log(f"data -> {data}")
                 if not buf:
                     return
-                if buf == b"\x1E":
+                
+                if buf == b"\x1e":
+                    log(f"data_return -> {data}")
                     return data
                 
                 data += buf
@@ -69,7 +74,9 @@ class Client:
             
 
     def recv_json(self) -> dict | None:
-        msg =  self._recv_util()   
+        print("recv_is_called")
+        msg =  self._recv_util()
+        log(f"msg-> {msg}")
         if not msg:
             self.close()
             return None
@@ -82,7 +89,8 @@ class Client:
     
     def send_json(self, obj: dict):
         try:
-            self.conn.sendall(f"{json.dumps(obj)}\x1E".encode())
+            self.conn.sendall(f"{json.dumps(obj)}\x1e".encode())
+            print(f"send -> {obj}")
         except Exception as e:
             self.close()
 

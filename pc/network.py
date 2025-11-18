@@ -111,12 +111,13 @@ class Network:
         Receives a full JSON message terminated by the ASCII RS (0x1E).
         """
         # if a message is still in prev recv data
-        index = self.prev_data.find("\x1E")
+        index = self.prev_data.find("\x1e")
         if index != -1:
             return self.__get_one_msg(index)
         
         try:
-            chunk = self.conn.recv(1024)
+            chunk = self.conn.recv(5)
+            print(f"chunk -> {chunk}")
         except Exception as e:
             print(f"[RecvError] {e}")
             self.close()
@@ -127,8 +128,8 @@ class Network:
             self.close()
             return None
 
-        self.prev_data + chunk.decode()
-        index = self.prev_data.find("\x1E")
+        self.prev_data += chunk.decode()
+        index = self.prev_data.find("\x1e")
 
         if index == -1: 
             # return the data only when one message is found
@@ -139,7 +140,8 @@ class Network:
 
     def send_json(self, obj: dict):
         try:
-            self.conn.sendall(f"{json.dumps(obj)}\x1E".encode())
+            self.conn.sendall(f"{json.dumps(obj)}\x1e".encode())
+            print(f"send -> {obj}")
         except Exception as e:
             self.close()
 
