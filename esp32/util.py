@@ -17,15 +17,17 @@ class WiFi:
         self.station = network.WLAN(network.STA_IF)
         sleep(1)
         self.station.active(True)
+        log("[Wifi] Status: ACTIVE")
         sleep(1)
         self.online = 0
-        self.ssid=None
+        self.ssid = None
+        self.passwd = None
         
     def ipconfig(self):
-        print("IP:", self.station.ifconfig()[0])
-        print("Subnet:", self.station.ifconfig()[1])
-        print("Gateway:", self.station.ifconfig()[2])
-        print("DNS:", self.station.ifconfig()[3])
+        print("IP : ", self.station.ifconfig()[0])
+        print("Subnet : ", self.station.ifconfig()[1])
+        print("Gateway : ", self.station.ifconfig()[2])
+        print("DNS : ", self.station.ifconfig()[3])
 
     def is_online(self):
         try:
@@ -39,6 +41,23 @@ class WiFi:
 
         return self.online
     
+    def connect(self, ssid = None, passwd = None, timeout = 30):
+        if not ssid:
+            ssid = self.ssid
+        if not passwd:
+            passwd = self.passwd
+
+        if not self.station.isconnected():
+            status = self.connect_to(ssid, passwd, timeout)
+            if status:
+                return True
+            
+            time.sleep(20)
+            
+        if self.is_online():
+            log("[Wifi] Status: ONLINE")
+        else:
+            log("[Wifi] Status: OFFLINE")
     
     def connect_to(self, ssid, passwd, timeout=30):
         try:
@@ -46,21 +65,21 @@ class WiFi:
             self.station.connect(ssid, passwd)
             count = 0
             start_time = time()
+            log("[WiFi] Connecting.", end = "")
             while self.station.status()==network.STAT_CONNECTING:
-                count+=1
-                log(f"{count}){ssid}&st={self.station.status()}")
-                if (time()-start_time)> timeout:
-                    log("TimeOut")
+                print(".", end="")
+                if (time()-start_time) > timeout:
+                    log("\n[WiFi] Timeout Error", end = "")
                     break
 
-                sleep(1)
+                sleep(0.5)
 
+            print() # new Line
             status = self.station.status()
             self.ssid = ssid
 
-            log(f"Status==> {status}")
             if status==network.STAT_WRONG_PASSWORD:
-                log("[WiFi] Wrong Passwd...")
+                log("[WiFi] Wrong Password...")
 
         except Exception as e:
             log(f'Error[1] : {e}')

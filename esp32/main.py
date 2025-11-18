@@ -222,9 +222,9 @@ if __name__ == "__main__":
                     continue
             
             if client.wifi.is_online():
-                log("[Wifi] Connected to INTERNET")
+                log("[Wifi] Status: ONLINE")
             else:
-                log("[Wifi] Not connected to INTERNET")
+                log("[Wifi] Status: OFFLINE")
 
             client.connect()
             client.command_loop()
