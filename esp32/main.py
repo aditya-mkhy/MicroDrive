@@ -114,9 +114,26 @@ class Client:
             reply_msg = {"type": "result", "ok": True, "cwd": cwd}
 
         elif name == "cd":
-            to_path = cmd.get("to_path")
-            on_path = self.drive.chdir(path=to_path)
+            path = cmd.get("path")
+            on_path = self.drive.chdir(path=path)
             reply_msg = {"type": "result", "ok": True, "cwd": on_path}
+        
+        elif name == "rm":
+            path = cmd.get("path")
+            status = self.drive.remove(path=path)
+            if not status:
+                reply_msg = {"type": "result", "ok": True}
+            else:
+                reply_msg = {"type": "result", "ok": False, "error": "File not exists or can't be removed"}
+
+
+        elif name == "mkdir":
+            folder = cmd.get("mkdir")
+            status = self.drive.mkdir(folder)
+            if status:
+                reply_msg = {"type": "result", "ok": True}
+            else:
+                reply_msg = {"type": "result", "ok": False, "error": f"Can't make folder :{folder}"}
 
         else:
             reply_msg = {"type": "result", "ok": False, "error": "unknown cmd"}

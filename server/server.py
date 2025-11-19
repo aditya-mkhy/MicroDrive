@@ -137,7 +137,7 @@ class HandleClient:
             return self.__get_one_msg(index)
         
         try:
-            chunk = self.conn.recv(5)
+            chunk = self.conn.recv(1024)
             print(f"chink => {chunk}")
         except Exception as e:
             print(f"[RecvError] {e}")

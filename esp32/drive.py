@@ -107,16 +107,16 @@ class Drive:
             os.mkdir(folder)
             return True
         except:
-            return
+            return False
         
     def remove(self, path: str):
         if path == self.mount_point:
-            return 
+            return False
         try:
             os.remove(path)
             return True
         except:
-            return
+            return False
         
     def get_cwd(self):
         cwd = os.getcwd()

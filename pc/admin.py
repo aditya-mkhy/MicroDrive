@@ -22,42 +22,72 @@ class Admin:
         self.password: Optional[str] = None  # encryption password
 
 
-    def handle_commands(self, cmd: str, args: list):
+    # def handle_comma00nds(self, cmd: str, args: list):
+        # elif cmd == "put":
+        #     if not args:
+        #         print("Usage: put <local_file> [remote_path]")
+        #     else:
+        #         local = args[0]
+        #         remote = args[1] if len(args) >= 2 else None
+        #         self.cmd_put(local, remote) 
+        # elif cmd == "get":
+        #     if not args:
+        #         print("Usage: get <remote_path> [local_file]")
+        #     else:
+        #         remote = args[0]
+        #         local = args[1] if len(args) >= 2 else None
+        #         self.cmd_get(remote, local)
+        # else:
+        #     print("[!] Unknown command:", cmd)
+
+    def _handle_other_reply(self, reply: dict):
+        print(f"Got Invalid Reply : {reply}")
+        print("please handle it...")
+
+    def handle_commands(self, cmd: str, args: list | None):
         # handle the command...
         if cmd == "help":
             help_text()
+            return
+        
+        if cmd == "ls" or cmd == "cwd":
+            json_command = {"type": "cmd", "name": cmd}
 
-        elif cmd == "ls":
-            self._cmd_ls()
-
-        elif cmd == "cd":
-            path = args[0] if args else None
-            self._cmd_cd(path)
-
-        elif cmd == "pwd":
-            self.cmd_pwd()
-        elif cmd == "rm":
-            path = args[0] if args else None
-            self.cmd_rm(path)
-        elif cmd == "mkdir":
-            path = args[0] if args else None
-            self.cmd_mkdir(path)
-        elif cmd == "put":
+        elif cmd == "cd" or cmd == "rm" or cmd == "mkdir":
             if not args:
-                print("Usage: put <local_file> [remote_path]")
-            else:
-                local = args[0]
-                remote = args[1] if len(args) >= 2 else None
-                self.cmd_put(local, remote) 
-        elif cmd == "get":
-            if not args:
-                print("Usage: get <remote_path> [local_file]")
-            else:
-                remote = args[0]
-                local = args[1] if len(args) >= 2 else None
-                self.cmd_get(remote, local)
+                print(f"[!] {cmd} requires a path")
+                return
+            json_command = {"type": "cmd", "name": "mkdir", "path": args[0]}
+
+
         else:
             print("[!] Unknown command:", cmd)
+            return
+        
+        reply = self.network.recv_json(json_command)
+        if reply.get("type") != "result":
+            # hadle reply other than result
+            return self._handle_other_reply(reply)
+        
+        if not reply.get("ok"):
+            print(f"[-] [Error] [exe_cmd] Remote client failed to execute command: {cmd}")
+            if reply.get("error"):
+                print(f"            [Error]   {reply.get("error")}")
+            return
+        
+        if cmd == "ls":
+            info = reply.get("info")
+            self._print_files(info=info)
+        
+        elif cmd == "cd" or cmd == "cwd":
+            self.remote_cwd = reply.get("cwd")
+        
+        elif cmd == "rm" or cmd == "mkdir":
+            print(f"[+] {'created' if cmd == 'rm' else 'removed'} {args[0]}")
+
+        else:
+            print(f"[Error] [ReplyHandle] please hanlde reply : {reply}")
+
 
     def _print_files(self, info: list):
         print("")
@@ -74,56 +104,12 @@ class Admin:
         print(f"        Folders : {len(info) - file_count}")
 
 
-    def _cmd_ls(self):
-        self.network.send_json({"type": "cmd", "name": "ls"})
-        reply = self.network.recv_json()
-        reply_type = reply.get("type")
-        if reply_type == "result":
-            if not reply.get("ok"):
-                print(f"Error_In_Listing files : {reply.get("error")}")
-
-            info = reply.get("info")
-            self._print_files(info=info)
-
-        else:
-            print(f"Got invalid reply : {reply}")
-
-    def _cmd_cd(self, path: str):
-        if not path:
-            return
-        
-        self.network.send_json({"type": "cmd", "name": "cd", "to_path": path})
-        reply = self.network.recv_json()
-        reply_type = reply.get("type")
-        if reply_type == "result":
-            if not reply.get("ok"):
-                print(f"Error_In_CD : {reply.get("error")}")
-
-            self.remote_cwd = reply.get("cwd")
-
-        else:
-            print(f"Got invalid reply : {reply}")
-
-    def _set_remote_cwd(self):
-        self.network.send_json({"type": "cmd", "name": "cwd"})
-        reply = self.network.recv_json()
-        reply_type = reply.get("type")
-        if reply_type == "result":
-            if not reply.get("ok"):
-                print(f"ErrorInRmPath : {reply.get("error")}")
-
-            self.remote_cwd = reply.get("cwd")
-            print("[Admin] remote cwd set...")
-
-        else:
-            print(f"Got invalid reply : {reply}")
-        
-
     # shell...
     def run_shell(self):
         print("Type 'help' for commands.\n")
-        self._set_remote_cwd()
-        
+        self.handle_commands(cmd = "cd", args=None)
+        print("[Admin] remote cwd set...")
+
         while True:
             try:
                 line = input(f"({self.esp32_name}) {format_esp32_path(self.remote_cwd)} ~ ")

@@ -106,7 +106,7 @@ class Network:
     
     
 
-    def recv_json(self) -> Optional[dict]:
+    def recv_json(self) -> dict:
         """
         Receives a full JSON message terminated by the ASCII RS (0x1E).
         """
