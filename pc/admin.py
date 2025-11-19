@@ -64,7 +64,9 @@ class Admin:
             print("[!] Unknown command:", cmd)
             return
         
-        reply = self.network.recv_json(json_command)
+        self.network.send_json(json_command)
+        reply = self.network.recv_json()
+        
         if reply.get("type") != "result":
             # hadle reply other than result
             return self._handle_other_reply(reply)
