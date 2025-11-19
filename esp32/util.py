@@ -112,6 +112,21 @@ def join_path(base, *paths):
         base = base + "/" + p
     return base
 
+def split_ext(filename: str):
+    index = filename.rfind(".")
+    if index == -1:
+        return filename, None
+    return filename[:index], filename[index:]
+    
+def get_filename(path: str) -> str | None:
+    path.replace("\\", "/")
+    name = path[path.rfind("/") + 1:]
+    _, ext = split_ext(name)
+    if not ext:
+        return
+    
+    return name
+
 def path_exists(path):
     try:
         os.stat(path)
@@ -187,3 +202,5 @@ def update_time():
         print("Failed to update time:", e)
         return False
  
+if __name__ == "__main__":
+    print(filename("/sd/name/pala/k.txt"))
