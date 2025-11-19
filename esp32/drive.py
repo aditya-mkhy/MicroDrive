@@ -109,13 +109,24 @@ class Drive:
         except:
             return False
         
-    def remove(self, path: str):
+    def remove(self, path: str, is_dir = False):
         if path == self.mount_point:
+            print(f"path : {path} and mount_point : {self.mount_point}")
             return False
         try:
             os.remove(path)
             return True
         except:
+            return False
+        
+    def rmdir(self, path: str, is_dir = False):
+        if path == self.mount_point:
+            print(f"path : {path} and mount_point : {self.mount_point}")
+            return False
+        try:
+            os.rmdir(path)
+            return True
+        except Exception as e:
             return False
         
     def get_cwd(self):

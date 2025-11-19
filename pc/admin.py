@@ -53,11 +53,11 @@ class Admin:
         if cmd == "ls" or cmd == "cwd":
             json_command = {"type": "cmd", "name": cmd}
 
-        elif cmd == "cd" or cmd == "rm" or cmd == "mkdir":
+        elif cmd == "cd" or cmd == "rm" or cmd == "mkdir" or cmd == "rmdir":
             if not args:
                 print(f"[!] {cmd} requires a path")
                 return
-            json_command = {"type": "cmd", "name": "mkdir", "path": args[0]}
+            json_command = {"type": "cmd", "name": cmd, "path": args[0]}
 
 
         else:
@@ -74,7 +74,7 @@ class Admin:
         if not reply.get("ok"):
             print(f"[-] [Error] [exe_cmd] Remote client failed to execute command: {cmd}")
             if reply.get("error"):
-                print(f"            [Error]   {reply.get("error")}")
+                print(f"              [Error]   {reply.get("error")}")
             return
         
         if cmd == "ls":
@@ -84,8 +84,8 @@ class Admin:
         elif cmd == "cd" or cmd == "cwd":
             self.remote_cwd = reply.get("cwd")
         
-        elif cmd == "rm" or cmd == "mkdir":
-            print(f"[+] {'created' if cmd == 'rm' else 'removed'} {args[0]}")
+        elif cmd == "rm" or cmd  == "rmdir" or cmd == "mkdir":
+            print(f"[+] {'created' if cmd == 'mkdir' else 'removed'} {args[0]}")
 
         else:
             print(f"[Error] [ReplyHandle] please hanlde reply : {reply}")
@@ -109,7 +109,7 @@ class Admin:
     # shell...
     def run_shell(self):
         print("Type 'help' for commands.\n")
-        self.handle_commands(cmd = "cd", args=None)
+        self.handle_commands(cmd="cwd", args=None)
         print("[Admin] remote cwd set...")
 
         while True:

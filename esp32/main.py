@@ -53,14 +53,10 @@ class Client:
 
 
     def _recv_util(self) -> bytes | None:
-        print("recv_initl_is called")
         data = b""
-
         while True:
             try:
                 buf = self.conn.recv(1)
-                log(f"buf -> {buf}")
-                log(f"data -> {data}")
                 if not buf:
                     return
                 
@@ -74,7 +70,6 @@ class Client:
             
 
     def recv_json(self) -> dict | None:
-        print("recv_is_called")
         msg =  self._recv_util()
         log(f"msg-> {msg}")
         if not msg:
@@ -121,14 +116,23 @@ class Client:
         elif name == "rm":
             path = cmd.get("path")
             status = self.drive.remove(path=path)
-            if not status:
+            if status:
                 reply_msg = {"type": "result", "ok": True}
             else:
                 reply_msg = {"type": "result", "ok": False, "error": "File not exists or can't be removed"}
 
+        elif name == "rmdir":
+            path = cmd.get("path")
+            status = self.drive.rmdir(path=path)
+
+            if status:
+                reply_msg = {"type": "result", "ok": True}
+            else:
+                reply_msg = {"type": "result", "ok": False, "error": f"Could not remove folder because it contains files: {path}"}
+
 
         elif name == "mkdir":
-            folder = cmd.get("mkdir")
+            folder = cmd.get("path")
             status = self.drive.mkdir(folder)
             if status:
                 reply_msg = {"type": "result", "ok": True}
