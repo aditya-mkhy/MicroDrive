@@ -71,6 +71,51 @@ class Client:
         except Exception as e:
             self.close()
 
+    def handle_get(self, cmd: dict):
+        path = cmd.get("path")
+        if not path:
+            self.send_json({"type": "error", "error": "no path"})
+            return
+        
+        try:
+            st = os.stat(path)
+            size = st[6] if len(st) > 6 else st[0]
+        except Exception as e:
+            self.send_json({"type": "error", "error": "FileNotFound"})
+            return
+        
+        log(f"[GET] Sending = {size} bytes from : {path}")
+        self.send_json({"type": "result", "size": size})
+
+        conf_msg = self.recv_json()
+        if conf_msg.get("type") != "result":
+            log(f"[GET] => Got invalid type of reply : {conf_msg}")
+            return
+        
+        if conf_msg.get("info") != "send":
+            log(f"[GET] [Error] [remote] => Send operation not confirmed")
+            return
+        
+        log(f"[GET] [remote] => Send operation confirmed")
+
+        # Send file contents in chunks as frames
+        try:
+            chunk_size = 512
+            with open(path, "rb") as tf:
+                while True:
+
+                    data = tf.read(chunk_size)
+                    if not data:
+                        break
+                    self.conn.sendall(data)
+                
+            print(f"[GET] Done sending : {path}")
+            
+        except Exception as e:
+            print("[GET] Error while sending: ", e)
+            self.close()
+
+
     def handle_put(self, cmd: dict):
         path = cmd.get("path")
         size = cmd.get("size", 0)

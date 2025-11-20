@@ -26,27 +26,49 @@ class Admin:
         self.password: Optional[str] = None  # encryption password
 
 
-    # def handle_comma00nds(self, cmd: str, args: list):
-        # elif cmd == "put":
-        #     if not args:
-        #         print("Usage: put <local_file> [remote_path]")
-        #     else:
-        #         local = args[0]
-        #         remote = args[1] if len(args) >= 2 else None
-        #         self.cmd_put(local, remote) 
-        # elif cmd == "get":
-        #     if not args:
-        #         print("Usage: get <remote_path> [local_file]")
-        #     else:
-        #         remote = args[0]
-        #         local = args[1] if len(args) >= 2 else None
-        #         self.cmd_get(remote, local)
-        # else:
-        #     print("[!] Unknown command:", cmd)
-
     def _handle_other_reply(self, reply: dict):
         print(f"Got Invalid Reply : {reply}")
         print("please handle it...")
+
+    def _get_cmd(self, remote_path: str, local_path: str, get_pass = False):
+        remote_path = os.path.basename(remote_path)
+
+        if get_pass and get_pass != "-p":
+            passwd = get_pass
+
+        elif get_pass == "-p":
+            passwd = getpass.getpass("Encryption password: ")
+        
+        elif not self.password:
+            passwd = getpass.getpass("Encryption password: ")
+            self.password = passwd
+        else:
+            passwd = self.password
+
+        self.network.send_json({"type": "cmd", "name": "get", "path": remote_path})
+        reply = self.network.recv_json()
+
+        if reply.get("type") == "error":
+            error = reply.get("error")
+            if error == "FileNotFound":
+                print(f"[GET] [ERROR] [remote] File not found at CWD")
+                return
+            
+            print(f"[GET] [ERROR] [remote] error => {error}")
+            return
+        
+        if reply.get("type") != "result":
+            print(f"[GET] => Got invalid type of reply : {reply}")
+            return
+        
+        size = reply.get("size")
+        print(f"[GET] [remote] [info] => Preparing to receive file (Size: {format_size(size)})")
+
+        # send conf msg
+        self.network.send_json({"type": "result", "info": "send"})
+
+
+     
 
     def _put_cmd(self, local_path: str, remote_path: str, get_pass = False):
         if not os.path.isfile(local_path):
@@ -158,6 +180,30 @@ class Admin:
                 print(f"[!] {cmd} requires a path")
                 return
             json_command = {"type": "cmd", "name": cmd, "path": args[0]}
+
+        elif cmd == "get":
+            if not args:
+                print("Usage: get <remote_path> [local_file]")
+                            
+            remote = args[0]
+            local = args[1] if len(args) >= 2 else remote
+            get_pass = args[2] if len(args) >= 3 else None
+
+            if local == "-p":
+                get_pass = get_pass or "-p"
+                local = remote
+            
+            elif get_pass == "-p":
+                get_pass = args[3] if len(args) > 3 else get_pass
+
+            print(f"remote => {remote}")
+            print(f"local => {local}")
+            print(f"get_pass => {get_pass}")
+            return
+                    
+            return self._get_cmd(remote, local, get_pass=get_pass)
+        
+        
 
         elif cmd == "put":
             if not args:
@@ -271,5 +317,3 @@ if __name__ == "__main__":
     admin = Admin(host=host, port=port)
     admin.network.connect()
     admin.run_shell()
-    
-
