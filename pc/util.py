@@ -67,7 +67,31 @@ def format_size(size):
     val = round(size, 2) if size < 10 else int(size)
     return f"{val} {unit}"
     
+def format_time(sec: float) -> str:
+    sec = int(sec)
+    # Seconds
+    if sec < 60:
+        return f"{sec} Sec"
+
+    # Minutes
+    if sec < 3600:
+        m = sec // 60
+        s = sec % 60
+        return f"{m} min" if s == 0 else f"{m}:{s:02d} Mint"
+
+    # Hours
+    if sec < 86400:
+        h = sec // 3600
+        m = (sec % 3600) // 60
+        return f"{h} hr" if m == 0 else f"{h}:{m:02d} Hrs"
+
+    # Days
+    d = sec // 86400
+    h = (sec % 86400) // 3600
+    return f"{d} days" if h == 0 else f"{d}:{h:02d} Days"
+
+
 
 if __name__ == "__main__":
     # help_text()
-    print(format_esp32_path("/sd"))
+    print(format_time(125))

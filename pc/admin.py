@@ -1,10 +1,11 @@
 import sys
 from typing import Optional, Tuple
 import os
-from util import help_text, parse_command, format_esp32_path, format_size
+from util import help_text, parse_command, format_esp32_path, format_size, format_time
 from network import Network
 import getpass
 from crypto import Crypto
+import time
 
 
 class Admin:
@@ -49,11 +50,11 @@ class Admin:
 
     def _put_cmd(self, local_path: str, remote_path: str, get_pass = False):
         if not os.path.isfile(local_path):
-            print("[PUT] Local file does not exist:", local_path)
+            print("[PUT] => Local file does not exist:", local_path)
             return
         
         if os.stat(local_path).st_size > (1024 * 1024 * 1024):
-            print("[PUT] [Error] File too large. Maximum supported size is 1GB")
+            print("[PUT] [Error] => File too large. Maximum supported size is 1GB")
             return
         
         remote_path = os.path.basename(remote_path)
@@ -72,13 +73,13 @@ class Admin:
 
         enc_data = self.crypto.encrypt_file(local_path, passwd)
         size = len(enc_data)
-        print(f"[PUT] Encrypted size: {format_size(size)}")
+        print(f"[PUT] => Encrypted size: {format_size(size)}")
 
         self.network.send_json({"type": "cmd", "name": "put", "path": remote_path, "size": size})
         conf_msg = self.network.recv_json()
 
         if conf_msg.get("type") != "result":
-            print(f"[PUT] Got invalid type of reply : {conf_msg}")
+            print(f"[PUT] => Got invalid type of reply : {conf_msg}")
             return
         
         if not conf_msg.get("ok"):
@@ -90,9 +91,13 @@ class Admin:
             return
         
         print(f"[PUT] [remote] => Send operation confirmed")
+
         # ---- Data tranfer
         chunk_size = 512
         offset = 0
+        start_time = time.time()
+        last_update = start_time
+        prev_len = 0
 
         while offset < size:
             chunk = enc_data[offset : offset + chunk_size]
@@ -105,7 +110,27 @@ class Admin:
             
             offset += len(chunk)
 
-        print("[PUT] [remote] => Sent, waiting for confirmation")
+            # update once per 0.5 seconds
+            now = time.time()
+            if now - last_update >= 0.5:
+                last_update = now
+
+                elapsed = now - start_time
+                speed = offset / elapsed if elapsed > 0 else 0  # bytes/sec
+                eta = (size - offset )/ speed if speed > 0 else 0  # sec
+
+                # clear previous message
+                sys.stdout.write("\r" + (" " * prev_len) + "\r")
+
+                # write new message
+                line = f"\r[PUT] [info] ( {format_size(offset)} of {format_size(size)},  {format_size(speed)}/s,  {format_time(eta)} left )"
+                sys.stdout.write(line)
+                sys.stdout.flush()
+
+                prev_len = len(line)
+
+
+        print("\n[PUT] [remote] => Sent, waiting for confirmation")
 
         conf_msg = self.network.recv_json()
         if conf_msg.get("type") != "result":
@@ -244,7 +269,7 @@ if __name__ == "__main__":
     host, port = get_argv(host="localhost", port=9000)
 
     admin = Admin(host=host, port=port)
-    # admin.network.connect()
+    admin.network.connect()
     admin.run_shell()
     
 

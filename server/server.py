@@ -6,6 +6,7 @@ import json
 import sys
 from typing import Optional, Dict
 from datetime import datetime
+import time
 
 def log(*args, save = True, **kwargs):
     print(f" INFO [{datetime.now().strftime('%d-%m-%Y  %H:%M:%S')}] ", *args, **kwargs)
@@ -27,7 +28,9 @@ class MicroDriveRelayServer:
         self.cafile = cafile
 
         # role -> {"sock": ssl_sock, "addr": (ip, port)}
-        self.clients: Dict[str, HandleClient] = {"pc": None, "esp32": None}
+        self.pc_obj: HandleClient = None
+        self.esp32_obj: HandleClient = None
+
         self.clients_lock = threading.Lock()
 
         self.ssl_ctx = self._create_ssl_context()
@@ -56,14 +59,6 @@ class MicroDriveRelayServer:
         # ctx.minimum_version = ssl.TLSVersion.TLSv1_2
 
         return ctx
-
-
-    def _get_other_role(self, role: str) -> str:
-        return "esp32" if role == "pc" else "pc"
-
-    def _get_client_obj(self, role: str):
-        with self.clients_lock:
-            return self.clients.get(role)
 
  
     def serve_forever(self):
@@ -104,6 +99,7 @@ class HandleClient:
         # store uncomplete message
         self.prev_data = ""
         self.role = None
+        self.other_role_obj: HandleClient = None
 
         print(f"[+] New TLS connection from {addr}")
 
@@ -234,26 +230,35 @@ class HandleClient:
     def _check_clients(self):
         # Only allow one client per role
         with self.server.clients_lock:
-            if self.server.clients[self.role] is not None:
+            my_prev_obj = self.server.pc_obj if self.role == "pc" else self.server.esp32_obj
+
+            if my_prev_obj is not None:
                 log(f"[!] {self.role} already connected, rejecting {self.addr}")
                 self.send_json({"type": "error", "msg": "role_already_connected"})
                 self.close()
                 return
-            self.server.clients[self.role] = self
             
+            if self.role == "pc":
+                self.server.pc_obj = self
+            else:
+                self.server.esp32_obj = self
+
         log(f"[+] {self.role} registered from {self.addr}")
-        log(f"[@] connected_clients => {self.server.clients}")
+        log(f"[@] connected_clients => esp : {self.server.esp32_obj} and pc : {self.server.pc_obj}")
 
         # If both sides are present, notify them they are ready
         with self.server.clients_lock:
-            if self.server.clients["pc"] is not None and self.server.clients["esp32"] is not None:
+            if self.server.pc_obj is not None and self.server.esp32_obj is not None:
                 log("[*] Both pc and esp32 connected, sending ready status")
-                for rname, handler_obj in self.server.clients.items():
-                    try:
-                        print(f"rname > {rname}")
-                        handler_obj.send_json({"type": "status", "state": "ready"})
-                    except Exception as e:
-                        log(f"[!] Failed to send ready to {rname}: {e}")
+                try:
+                    self.server.esp32_obj.send_json({"type": "status", "state": "ready"})
+                except Exception as e:
+                    log(f"[!] Failed to send ready to esp32: {e}")
+
+                try:
+                    self.server.pc_obj.send_json({"type": "status", "state": "ready"})
+                except Exception as e:
+                    log(f"[!] Failed to send ready to pc: {e}")
 
     def close(self):
         try:
@@ -265,13 +270,14 @@ class HandleClient:
             return
         
         with self.server.clients_lock:
-            self.server.clients[self.role] = None
+            if self.role == "pc":
+                self.server.pc_obj = None
+            else:
+                self.server.esp32_obj = None
 
         log(f"[*] Client role={self.role} removed")
-        # Notify other side
-        try:
-            other_role = self.server._get_other_role(self.role)
-            other_handler: HandleClient = self.server._get_client_obj(other_role)
+        try:            
+            other_handler = self.server.pc_obj if self.role == "esp32" else self.server.esp32_obj
             other_handler.send_json({"type": "status", "state": "peer_disconnected"})
         except Exception as e:
             log(f"Error in notifying other by {self.role} : {e}")
@@ -280,27 +286,23 @@ class HandleClient:
     def _main_forwading(self):
         while True:
             data = self.recv_raw(1024)
-            print(f"data_recvd [{self.role}]=> {data}")
-            other_role = self.server._get_other_role(self.role)
-            print(f"[{self.role}] other_role => {other_role}")
-            other_handler: HandleClient = self.server._get_client_obj(other_role)
-            print(f"[{self.role}] other_handler => {other_handler}")
+            other_handler = self.server.pc_obj if self.role == "esp32" else self.server.esp32_obj
 
             if other_handler is None:
                 # Other side missing – tell this client
-                print(f"[{self.role}] othe role not found...")
+                # print(f"[{self.role}] othe role not found...")
                 try:
                     self.send_json({"type": "status", "state": "peer_missing"})
                 except Exception:
                     pass
-
+                
+                time.sleep(0.2)
                 continue
 
             try:
                 other_handler.send_raw(data)
-                print(f"[{self.role}] send data to other role : {other_role} :=> {data}")
             except Exception as e:
-                log(f"[!] Forward error {self.role}->{other_role}: {e}")
+                log(f"[!] Forward error {self.role}->{other_handler}: {e}")
                 break
 
 

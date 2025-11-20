@@ -164,6 +164,9 @@ class Client:
             else:
                 reply_msg = {"type": "result", "ok": False, "error": f"Can't make folder :{folder}"}
 
+        elif name == "put":
+            return self.handle_put(cmd)
+
         else:
             reply_msg = {"type": "result", "ok": False, "error": "unknown cmd"}
 
