@@ -67,6 +67,35 @@ class Admin:
         # send conf msg
         self.network.send_json({"type": "result", "info": "send"})
 
+        data = b""
+        remaining = size
+        chunk_size = 512
+        start_time = time.time()
+        last_update = start_time
+        prev_len = 0
+
+        while remaining > 0:
+            try:
+                chunk = self.network.conn.recv(chunk_size if chunk_size < remaining else remaining)
+                if not chunk:
+                    print(f"[GET] [Error] Connection closed unexpectedly while receiving file: {remote_path}")
+                    self.network.close()
+                    return
+                
+                data += chunk
+                
+                
+            except Exception as e:
+                print(f"[GET] [Error] => Failed to receive '{remote_path}' due to: {e}")
+                self.network.close()
+                return
+            
+
+
+        
+
+
+
 
      
 

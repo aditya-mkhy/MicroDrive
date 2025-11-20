@@ -95,7 +95,7 @@ class Client:
         if conf_msg.get("info") != "send":
             log(f"[GET] [Error] [remote] => Send operation not confirmed")
             return
-        
+         
         log(f"[GET] [remote] => Send operation confirmed")
 
         # Send file contents in chunks as frames
