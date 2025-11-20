@@ -79,22 +79,16 @@ class Admin:
                 print("Usage: put <local_file> [remote_path]")
                             
             local = args[0]
-            remote = args[1] if len(args) >= 2 else None
+            remote = args[1] if len(args) >= 2 else local
             get_pass = args[2] if len(args) >= 3 else None
 
-            if remote:
-                if remote == "-p":
-                    if not get_pass:
-                        get_pass = "-p"
-
-                    remote = local
-                
-                elif get_pass == "-p":
-                    passwd = args[3] if len(args) >= 4 else None
-                    if passwd:
-                        get_pass = passwd
-            else:
+            if remote == "-p":
+                get_pass = get_pass or "-p"
                 remote = local
+            
+            elif get_pass == "-p":
+                get_pass = args[3] if len(args) > 3 else get_pass
+
 
             print(f"local : {local}")
             print(f"remote : {remote}")
