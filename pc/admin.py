@@ -4,6 +4,7 @@ import os
 from util import help_text, parse_command, format_esp32_path, format_size
 from network import Network
 import getpass
+from crypto import Crypto
 
 
 class Admin:
@@ -17,6 +18,7 @@ class Admin:
         """
         # network ->
         self.network = Network(host, port, cert_dir, as_server=as_server)
+        self.crypto = Crypto()
 
         self.remote_cwd = "/sd"  # default remote root
         self.esp32_name = "microdrive"
@@ -50,13 +52,71 @@ class Admin:
             print("[PUT] Local file does not exist:", local_path)
             return
         
-        remote_path = os.path.basename(remote_path)
-        if not self.password or get_pass:
-            self.password = getpass.getpass("Encryption password: ")
-
+        if os.stat(local_path).st_size > (1024 * 1024 * 1024):
+            print("[PUT] [Error] File too large. Maximum supported size is 1GB")
+            return
         
+        remote_path = os.path.basename(remote_path)
 
+        if get_pass and get_pass != "-p":
+            passwd = get_pass
 
+        elif get_pass == "-p":
+            passwd = getpass.getpass("Encryption password: ")
+        
+        elif not self.password:
+            passwd = getpass.getpass("Encryption password: ")
+            self.password = passwd
+        else:
+            passwd = self.password
+
+        enc_data = self.crypto.encrypt_file(local_path, passwd)
+        size = len(enc_data)
+        print(f"[PUT] Encrypted size: {format_size(size)}")
+
+        self.network.send_json({"type": "cmd", "name": "put", "path": remote_path, "size": size})
+        conf_msg = self.network.recv_json()
+
+        if conf_msg.get("type") != "result":
+            print(f"[PUT] Got invalid type of reply : {conf_msg}")
+            return
+        
+        if not conf_msg.get("ok"):
+            print(f"[PUT] [Error] [remote] =>  {conf_msg.get("error")}")
+            return
+        
+        if conf_msg.get("info") != "send":
+            print(f"[PUT] [Error] [remote] => Send operation not confirmed")
+            return
+        
+        print(f"[PUT] [remote] => Send operation confirmed")
+        # ---- Data tranfer
+        chunk_size = 512
+        offset = 0
+
+        while offset < size:
+            chunk = enc_data[offset : offset + chunk_size]
+            try:
+                self.network.conn.sendall(chunk)
+            except:
+                print(f"[PUT] [Error] [remote] => Connection closed during send")
+                self.network.close()
+                return
+            
+            offset += len(chunk)
+
+        print("[PUT] [remote] => Sent, waiting for confirmation")
+
+        conf_msg = self.network.recv_json()
+        if conf_msg.get("type") != "result":
+            print(f"[PUT] Got invalid type of reply : {conf_msg}")
+            return
+        
+        if not conf_msg.get("ok"):
+            print(f"[PUT] [Error] [remote] => Failed to write file: {conf_msg.get('error', 'Unknown error')}")
+            return
+        
+        print("[PUT] [remote] => Remote confirmed: file received successfully.")
 
 
     def handle_commands(self, cmd: str, args: list | None):
@@ -88,14 +148,8 @@ class Admin:
             
             elif get_pass == "-p":
                 get_pass = args[3] if len(args) > 3 else get_pass
-
-
-            print(f"local : {local}")
-            print(f"remote : {remote}")
-            print(f"get_pass : {get_pass}")
-            return
                     
-            return self._put_cmd(local, remote)
+            return self._put_cmd(local, remote, get_pass=get_pass)
 
         else:
             print("[!] Unknown command:", cmd)

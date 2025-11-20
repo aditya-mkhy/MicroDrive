@@ -9,22 +9,20 @@ class Crypto:
         self.nonce_len = 12
         self.kdf_iterations = 400_000
         self.key_len = 32  # 256-bit AES
-
-        # use one key for whole session
-        self.passwd = None
+        
 
     def derive_key(self, passwd: str, salt: bytes) -> bytes:
         """Derive a 256-bit key from passwd+salt using PBKDF2-HMAC-SHA256."""
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
-            length=self.passwd,
+            length=self.key_len,
             salt=salt,
             iterations=self.kdf_iterations,
         )
         return kdf.derive(passwd.encode("utf-8"))
 
 
-    def encrypt_file_to_bytes(self, path: str, passwd: str = None) -> bytes:
+    def encrypt_file(self, path: str, passwd: str = None) -> bytes:
         """
         Read a local file, encrypt its content with AES-256-GCM, and return:
             SALT(16) + NONCE(12) + CIPHERTEXT+TAG
@@ -34,7 +32,7 @@ class Crypto:
             plaintext = f.read()
 
         salt = os.urandom(self.salt_len)
-        key = self.derive_key(passwd or self.passwd, salt)
+        key = self.derive_key(passwd, salt)
         aesgcm = AESGCM(key)
         nonce = os.urandom(self.nonce_len)
 
