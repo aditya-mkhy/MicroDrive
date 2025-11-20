@@ -83,19 +83,37 @@ class Admin:
                     return
                 
                 data += chunk
-                
+                remaining -= len(chunk)
+
+
+                # update once per 0.5 seconds
+                now = time.time()
+                if now - last_update >= 0.5:
+                    last_update = now
+                    offset = size - remaining
+
+                    elapsed = now - start_time
+                    speed = offset / elapsed if elapsed > 0 else 0  # bytes/sec
+                    eta = (size - offset )/ speed if speed > 0 else 0  # sec
+
+                    # clear previous message
+                    sys.stdout.write("\r" + (" " * prev_len) + "\r")
+
+                    # write new message
+                    line = f"\r[GET] [info] ( {format_size(offset)} of {format_size(size)},  {format_size(speed)}/s,  {format_time(eta)} left )"
+                    sys.stdout.write(line)
+                    sys.stdout.flush()
+
+                    prev_len = len(line)
+
                 
             except Exception as e:
                 print(f"[GET] [Error] => Failed to receive '{remote_path}' due to: {e}")
                 self.network.close()
                 return
             
-
-
-        
-
-
-
+        print("[GET] [info] => File received successfully.")
+        self.crypto.decrypt_file(data=data, passwd=passwd, out_path=local_path)            
 
      
 

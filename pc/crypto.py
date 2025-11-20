@@ -40,26 +40,46 @@ class Crypto:
         return salt + nonce + ciphertext
 
 
-    def decrypt_bytes_to_file(self, data: bytes, passwd: str, out_path: str):
+    def decrypt_file(self, data: bytes, passwd: str, out_path: str):
         """
         Given SALT(16) + NONCE(12) + CIPHERTEXT+TAG, decrypt and write to file.
         """
         if len(data) < self.salt_len + self.nonce_len + 16:
-            raise ValueError("Encrypted blob too short")
+            print("[Decrypt] [error] => data is too short")
+            return False
+        
+        # Allow up to three attempts to enter the correct password
+        is_failed = False
+        for i in range(3):
+            try:
 
-        salt = data[:self.salt_len]
-        nonce = data[self.salt_len : self.salt_len + self.nonce_len]
-        ciphertext = data[self.salt_len + self.nonce_len :]
+                if is_failed:
+                    passwd = input(f"[Decrypt] Enter password ({3 - i} attempts remaining): ")
+                    if len(passwd.strip()) == 0:
+                        print("[Decrypt] Operation aborted — password required to continue.")
+                        return
+                        
+                print("[Decrypt] Decrypting ...")
+                salt = data[:self.salt_len]
+                nonce = data[self.salt_len : self.salt_len + self.nonce_len]
+                ciphertext = data[self.salt_len + self.nonce_len :]
 
-        key = self.derive_key(passwd or self.passwd, salt)
-        aesgcm = AESGCM(key)
-        plaintext = aesgcm.decrypt(nonce, ciphertext, None)
-
-        with open(out_path, "wb") as f:
-            f.write(plaintext)
+                key = self.derive_key(passwd, salt)
+                aesgcm = AESGCM(key)
+                plaintext = aesgcm.decrypt(nonce, ciphertext, None)
 
 
+                with open(out_path, "wb") as f:
+                    f.write(plaintext)    
 
+                print(f"[Decrypt] [Decrypt] Saved decrypted file to : {out_path}")   
+
+            except Exception as e:
+                print("[Decrypt] [Error] Incorrect password — decryption failed")
+                is_failed = True
+            
+
+     
 
 if __name__ == "__main__":
     in_path = "C:\\Users\\mahad\\Downloads\\Git-2.51.2-64-bit.exe"
