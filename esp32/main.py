@@ -18,7 +18,7 @@ import ssl
 import certs
 import gc
 from drive import Drive
-from util import log, DB, WiFi
+from util import log, DB, WiFi, get_filename
 
 
 class Client:
@@ -33,24 +33,6 @@ class Client:
 
     def close(self):
         log("Closing the connection...")
-
-    def recvdata(self):
-        t=b''
-        while 1:
-            try:
-                d=self.conn.read(1)
-                if not d:
-                    t=None
-                    break
-                if d==b'~':
-                    break
-                t+=d
-            except:
-                t=None
-                self.is_connected=False
-                break
-        return t
-
 
     def _recv_util(self) -> bytes | None:
         data = b""
@@ -88,6 +70,49 @@ class Client:
             print(f"send -> {obj}")
         except Exception as e:
             self.close()
+
+    def handle_put(self, cmd: dict):
+        path = cmd.get("path")
+        size = cmd.get("size", 0)
+
+        if not path or size <= 0:
+            self.send_json({"type": "result", "ok": False, "error": "bad path/size"})
+            return
+        
+        filename = get_filename(path)
+        if not filename:
+            self.send_json({"type": "result", "ok": False, "error": f"bad filename, only filename is allowed (not a path):  {path}"})
+            return
+        
+        # send confermation to send file
+        self.send_json({"type": "result", "ok": True, "info": "send"})
+
+        log(f"[PUT] Receiving {size!r} bytes to : {filename}")
+        remaining = size
+        chunk_size = 512
+        try:
+            with open(filename, "wb") as tf:
+                while remaining > 0:
+                    try:
+                        chunk = self.conn.recv(chunk_size if chunk_size < remaining else remaining)
+                        if not chunk:
+                            log(f"[PUT] [Error] Connection closed unexpectedly while receiving file: {filename}")
+                            self.close()
+                            return
+                    except Exception as e:
+                        log(f"[PUT] [Error] recv failed while receiving file {filename}: {e}")
+                        self.close()
+                        return
+
+                    tf.write(chunk)
+                    remaining -= len(chunk)
+
+            log(f"[PUT] Completed writing file: {filename}")
+            self.send_json({"type": "result", "ok": True})
+
+        except Exception as e:
+            log(f"[-] [PUT] Error writing file {filename}: {e}")
+            self.send_json({"type": "result", "ok": False, "error": str(e)})
 
     def handle_cmd(self, cmd: dict):
         log(f"GotCmd : {cmd}")

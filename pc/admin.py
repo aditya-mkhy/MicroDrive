@@ -3,6 +3,7 @@ from typing import Optional, Tuple
 import os
 from util import help_text, parse_command, format_esp32_path, format_size
 from network import Network
+import getpass
 
 
 class Admin:
@@ -44,6 +45,20 @@ class Admin:
         print(f"Got Invalid Reply : {reply}")
         print("please handle it...")
 
+    def _put_cmd(self, local_path: str, remote_path: str, get_pass = False):
+        if not os.path.isfile(local_path):
+            print("[PUT] Local file does not exist:", local_path)
+            return
+        
+        remote_path = os.path.basename(remote_path)
+        if not self.password or get_pass:
+            self.password = getpass.getpass("Encryption password: ")
+
+        
+
+
+
+
     def handle_commands(self, cmd: str, args: list | None):
         # handle the command...
         if cmd == "help":
@@ -59,6 +74,34 @@ class Admin:
                 return
             json_command = {"type": "cmd", "name": cmd, "path": args[0]}
 
+        elif cmd == "put":
+            if not args:
+                print("Usage: put <local_file> [remote_path]")
+                            
+            local = args[0]
+            remote = args[1] if len(args) >= 2 else None
+            get_pass = args[2] if len(args) >= 3 else None
+
+            if remote:
+                if remote == "-p":
+                    if not get_pass:
+                        get_pass = "-p"
+
+                    remote = local
+                
+                elif get_pass == "-p":
+                    passwd = args[3] if len(args) >= 4 else None
+                    if passwd:
+                        get_pass = passwd
+            else:
+                remote = local
+
+            print(f"local : {local}")
+            print(f"remote : {remote}")
+            print(f"get_pass : {get_pass}")
+            return
+                    
+            return self._put_cmd(local, remote)
 
         else:
             print("[!] Unknown command:", cmd)
@@ -109,7 +152,7 @@ class Admin:
     # shell...
     def run_shell(self):
         print("Type 'help' for commands.\n")
-        self.handle_commands(cmd="cwd", args=None)
+        # self.handle_commands(cmd="cwd", args=None)
         print("[Admin] remote cwd set...")
 
         while True:
@@ -153,7 +196,7 @@ if __name__ == "__main__":
     host, port = get_argv(host="localhost", port=9000)
 
     admin = Admin(host=host, port=port)
-    admin.network.connect()
+    # admin.network.connect()
     admin.run_shell()
     
 
