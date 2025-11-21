@@ -78,8 +78,18 @@ class Crypto:
             except Exception as e:
                 print("[Decrypt] [Error] Incorrect password — decryption failed")
                 is_failed = True
-            
-     
+
+        # if user want the encypted file to save...
+        conf = input(f"Would you like to save it as an encrypted file? (yes/no) : ")
+        if conf.strip() != "yes":
+            return
+        
+        out_path = f"{out_path}.enc"
+        with open(out_path, "wb") as f:
+            f.write(data)
+
+        print(f"[Decrypt] Successfully saved the encrypted file at : {out_path}") 
+
 
 if __name__ == "__main__":
     in_path = "C:\\Users\\mahad\\Downloads\\Git-2.51.2-64-bit.exe"

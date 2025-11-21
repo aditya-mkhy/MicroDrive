@@ -175,7 +175,7 @@ class Client:
                 reply_msg = {"type": "result", "ok": False, "error": "error"}
 
         elif name == "cwd":
-            cwd = self.drive.cwd
+            cwd = self.drive.get_cwd()
             reply_msg = {"type": "result", "ok": True, "cwd": cwd}
 
         elif name == "cd":
