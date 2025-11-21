@@ -361,5 +361,5 @@ if __name__ == "__main__":
     host, port = get_argv(host="localhost", port=9000)
 
     admin = Admin(host=host, port=port)
-    admin.network.connect()
+    status = admin.network.connect()
     admin.run_shell()

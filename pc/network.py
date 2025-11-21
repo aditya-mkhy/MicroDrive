@@ -5,6 +5,7 @@ import struct
 import os
 from typing import Optional
 from util import log
+import sys
 
 class Network:
     def __init__(self, host: str, port: int, cert_dir: str= None, as_server: bool = None):
@@ -64,6 +65,8 @@ class Network:
             self.client_key  = os.path.join(cert_dir, "pc_client_key.pem")
 
 
+
+
     def _create_ssl_context(self) -> ssl.SSLContext:
         """
         TLS server context:
@@ -89,7 +92,12 @@ class Network:
         return ctx
     
     def close(self):
-        print("Close")
+        try:
+            self.conn.close()
+        except:
+            pass
+        self.conn = None 
+        print("[NET] Connection closed..")
 
     def __get_one_msg(self, index: int):
         # Extract one full message
@@ -102,11 +110,9 @@ class Network:
         except json.JSONDecodeError:
             print("Invalid JSON received.")
             return None
-        
-    
-    
 
-    def recv_json(self) -> dict | None:
+
+    def recv_json(self, timeout = 2) -> dict | None:
         """
         Receives a full JSON message terminated by the ASCII RS (0x1E).
         """
@@ -115,17 +121,33 @@ class Network:
         if index != -1:
             return self.__get_one_msg(index)
         
+        if timeout:
+            self.conn.settimeout(timeout)
+        
         try:
             chunk = self.conn.recv(1024)
+            
+        except KeyboardInterrupt:
+            log("-- KeyboardInterrupt Detected. Stopping Server --", type='error')
+            self.close()
+            sys.exit(0)
+            return
+        
+        except socket.timeout:
+            self.conn.settimeout(None)
+            return "timeout"
+        
         except Exception as e:
             print(f"[RecvError] {e}")
             self.close()
             return None
         
         if not chunk:
-            print("Connection closed by the host.")
             self.close()
             return None
+        
+        if timeout:
+            self.conn.settimeout(None)
 
         self.prev_data += chunk.decode()
         index = self.prev_data.find("\x1e")
@@ -158,11 +180,15 @@ class Network:
         # Wait for status=ready (or peer_missing etc.)
         log("[*] Waiting for ESP32 to connect...")
 
+
         while True:
-            msg = self.recv_json()
+            msg = self.recv_json(timeout=1)
+            if msg == "timeout":
+                continue
+
             print(f"msg => {msg}")
             if not msg:
-                raise ConnectionError("Connection closed while waiting for ready")
+                return
             
             if msg.get("type") == "status":
                 state = msg.get("state")
@@ -172,11 +198,15 @@ class Network:
             # ignore others here
 
         log("[+] PC ↔ ESP32 relay ready")
+        return True
 
     
     def connect(self, timeout: int = None):
         ctx = self._create_ssl_context()
-        self._client_connect(ctx)
+        status = self._client_connect(ctx)
+        if not status:
+            print("[NET] Failed to connect to client. Exiting...")
+            os._exit(0)
         
 
 if __name__ == "__main__":

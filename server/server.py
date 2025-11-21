@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import socket
 import ssl
 import threading
@@ -121,7 +120,15 @@ class HandleClient:
         self.conn.sendall(data, flags=flags)
 
     def recv_raw(self, buflen: int = 1024, flags=0):
-        return self.conn.recv(buflen, flags)
+        try:
+            data = self.conn.recv(buflen, flags)
+            if not data:
+                self.close()
+                return
+            
+            return data
+        except:
+            self.close()
         
     def recv_json(self, timeout: float = None) -> Optional[dict]:
         """
@@ -276,9 +283,17 @@ class HandleClient:
                 self.server.esp32_obj = None
 
         log(f"[*] Client role={self.role} removed")
-        try:            
+        try:          
             other_handler = self.server.pc_obj if self.role == "esp32" else self.server.esp32_obj
-            other_handler.send_json({"type": "status", "state": "peer_disconnected"})
+            print(f"other_handler : {other_handler} ")
+
+            if other_handler:
+                print("tring to send")           
+                other_handler.send_json({"type": "status", "state": "peer_disconnected"})
+
+            else:
+                print("not send to tother")
+
         except Exception as e:
             log(f"Error in notifying other by {self.role} : {e}")
 
@@ -286,15 +301,15 @@ class HandleClient:
     def _main_forwading(self):
         while True:
             data = self.recv_raw(1024)
+            if not data:
+                return
+            
             other_handler = self.server.pc_obj if self.role == "esp32" else self.server.esp32_obj
-
             if other_handler is None:
-                # Other side missing – tell this client
-                # print(f"[{self.role}] othe role not found...")
                 try:
                     self.send_json({"type": "status", "state": "peer_missing"})
                 except Exception:
-                    pass
+                    self.close()
                 
                 time.sleep(0.2)
                 continue
@@ -303,6 +318,8 @@ class HandleClient:
                 other_handler.send_raw(data)
             except Exception as e:
                 log(f"[!] Forward error {self.role}->{other_handler}: {e}")
+                other_handler.close()
+                self.close()
                 break
 
 
@@ -330,12 +347,12 @@ class HandleClient:
 
         except (ConnectionError, OSError) as e:
             log(f"[-] {self.addr} disconnected: {e}")
+            self.close()
 
         except Exception as e:
             log(f"[!] Error with {self.addr}: {e}")
-
-        finally:
             self.close()
+
 
 
 def main():
