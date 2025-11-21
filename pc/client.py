@@ -7,6 +7,7 @@ MicroDrive PC Client
 - Talks to ESP32 via the relay using a simple JSON+binary protocol
 - Provides a small shell: ls, cd, pwd, put, get, rm, mkdir, exit
 """
+# First full stable release 
 
 import os
 import sys

@@ -1,3 +1,4 @@
+# First full stable release 
 import sys
 from typing import Optional, Tuple
 import os
@@ -187,8 +188,6 @@ class Admin:
 
                 elapsed = now - start_time
                 speed = offset / elapsed if elapsed > 0 else 0  # bytes/sec
-                eta = (size - offset )/ speed if speed > 0 else 0  # sec
-
                 # clear previous message
                 sys.stdout.write("\r" + (" " * prev_len) + "\r")
 

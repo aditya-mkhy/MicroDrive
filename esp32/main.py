@@ -3,6 +3,7 @@
 # - Waits for commands from PC:
 #     LIST, PUT, GET, RM, MKDIR
 # - Works with SD mounted at /sd
+# First full stable release 
 
 import os
 from time import sleep
@@ -32,7 +33,13 @@ class Client:
         self.conn: socket.socket = None
 
     def close(self):
-        log("Closing the connection...")
+        try:
+            self.conn.close()
+        except:
+            pass
+        self.conn = None
+        log("[NET] Connection closed..")
+
 
     def _recv_util(self) -> bytes | None:
         data = b""
@@ -67,7 +74,7 @@ class Client:
     def send_json(self, obj: dict):
         try:
             self.conn.sendall(f"{json.dumps(obj)}\x1e".encode())
-            print(f"send -> {obj}")
+            log(f"send -> {obj}")
         except Exception as e:
             self.close()
 
@@ -230,7 +237,7 @@ class Client:
                 continue
 
             if not cmd:
-                log("[NET] Disconnected")
+                log("[NET] Disconnected...")
                 break
 
             if cmd.get("type") == "cmd":
@@ -239,13 +246,22 @@ class Client:
 
 
             if cmd.get("type") == "status":
-                log("[STATUS]", cmd.get("state"))
+                state = cmd.get("state")
+                if state == "peer_missing":
+                    log("[cmd] [WARN] User is disconnted...waiting to reconnect...")
+                
+                elif state == "ready":
+                    log("[cmd] [INFO] User is connected again...")
+
+                else:
+                    log("[cmd] [STATUS]", cmd.get("state"))
 
             else:
-                log("[WARN] Unknown message:", cmd)
+                log("[cmd] [WARN] Unknown message:", cmd)
 
-        log("[NET] Client stopped")
+        log("[NET] Client stopped...")
 
+    
             
     def connect(self):
         addr_info = socket.getaddrinfo(self.host, self.port)[0][-1]
@@ -299,7 +315,7 @@ class Client:
 
 if __name__ == "__main__":
     # ---------- CONFIG ----------
-    host = "192.168.1.25"  
+    host = "192.168.1.5"  
     port = 9000
     mount_point = "/sd"
     sd_slot = 1
@@ -327,6 +343,9 @@ if __name__ == "__main__":
             client.command_loop()
         except Exception as e:
             log("[MAIN] Error in client_loop :", e)
+
+            if client.conn:
+                client.close()
 
         log("[MAIN] Reconnecting in 10 seconds...")
         sleep(10)

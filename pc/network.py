@@ -1,3 +1,4 @@
+# First full stable release
 import socket
 import ssl
 import json
@@ -112,7 +113,7 @@ class Network:
             return None
 
 
-    def recv_json(self, timeout = 2) -> dict | None:
+    def recv_json(self, timeout = None) -> dict | None:
         """
         Receives a full JSON message terminated by the ASCII RS (0x1E).
         """
@@ -182,7 +183,7 @@ class Network:
 
 
         while True:
-            msg = self.recv_json(timeout=1)
+            msg = self.recv_json(timeout=2)
             if msg == "timeout":
                 continue
 

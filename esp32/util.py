@@ -1,3 +1,4 @@
+# First full stable release
 import network 
 from time import time, sleep, localtime as loct
 import usocket as usk

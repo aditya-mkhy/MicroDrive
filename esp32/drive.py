@@ -1,4 +1,4 @@
-# handle SD cards
+# First full stable release
 import os
 import machine
 from util import log, path_exists, join_path

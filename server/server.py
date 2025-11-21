@@ -1,3 +1,4 @@
+#First full stable release
 import socket
 import ssl
 import threading
@@ -100,7 +101,7 @@ class HandleClient:
         self.role = None
         self.other_role_obj: HandleClient = None
 
-        print(f"[+] New TLS connection from {addr}")
+        log(f"[+] New TLS connection from {addr}")
 
 
 
@@ -113,7 +114,7 @@ class HandleClient:
         try:
             return json.loads(json_str)
         except json.JSONDecodeError:
-            print("Invalid JSON received.")
+            log("Invalid JSON received.")
             return None
         
     def send_raw(self,  data, flags=0):
@@ -141,14 +142,13 @@ class HandleClient:
         
         try:
             chunk = self.conn.recv(1024)
-            print(f"chink => {chunk}")
         except Exception as e:
-            print(f"[RecvError] {e}")
+            log(f"[RecvError] {e}")
             self.close()
             return None
         
         if not chunk:
-            print("Connection closed by the host.")
+            log("Connection closed by the host.")
             self.close()
             return None
 
@@ -199,10 +199,8 @@ class HandleClient:
         return cn
     
     def _get_role(self) -> str | None:
-        print(f"Recving....")
         # First msg: hello JSON with {"role": "pc" | "esp32"}
         hello = self.recv_json(timeout=5)
-        print(f"Recvhello : {hello}")
 
         if not hello:
             log(f"[!] {self.addr} sent invalid hello JSON, closing")
@@ -217,7 +215,6 @@ class HandleClient:
             self.close()
             return
         
-        print(f"my_role => {role}")
         return role
     
     # CN vs role check
@@ -285,14 +282,10 @@ class HandleClient:
         log(f"[*] Client role={self.role} removed")
         try:          
             other_handler = self.server.pc_obj if self.role == "esp32" else self.server.esp32_obj
-            print(f"other_handler : {other_handler} ")
 
             if other_handler:
-                print("tring to send")           
-                other_handler.send_json({"type": "status", "state": "peer_disconnected"})
+                other_handler.send_json({"type": "status", "state": "peer_missing"})
 
-            else:
-                print("not send to tother")
 
         except Exception as e:
             log(f"Error in notifying other by {self.role} : {e}")
@@ -324,25 +317,19 @@ class HandleClient:
 
 
     def handle(self):
-        print("running handler...")
         # log CN (if any)
         cn = self._get_peer_cn()
         if not cn: return
         
         role = self._get_role()
         if not role:return # invalid role...
-        print(f"halde_role -> {role}")
 
         check = self._check_role_vs_cn(cn=cn, role=role)
-        print(f"check_status : {check}")
         if not check: return # CN mismatch for role
-        print("Everting is verified...")
 
         try:
             self.role = role
-            print(f"Now, checking clients....")
             self._check_clients()
-            print(f"Now forwaring...")
             self._main_forwading()
 
         except (ConnectionError, OSError) as e:
