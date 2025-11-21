@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# First full stable release
 import os
 import shutil
 import subprocess
