@@ -187,7 +187,9 @@ class Admin:
                 last_update = now
 
                 elapsed = now - start_time
-                speed = offset / elapsed if elapsed > 0 else 0  # bytes/sec
+                speed = offset / elapsed if elapsed > 0 else 0 # sec# bytes/sec
+                eta = (size - offset )/ speed if speed > 0 else 0 
+
                 # clear previous message
                 sys.stdout.write("\r" + (" " * prev_len) + "\r")
 
