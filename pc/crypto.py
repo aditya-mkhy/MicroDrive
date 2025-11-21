@@ -59,7 +59,7 @@ class Crypto:
                         print("[Decrypt] Operation aborted — password required to continue.")
                         return
                         
-                print("[Decrypt] Decrypting ...")
+                print("[Decrypt]  Decrypting ...")
                 salt = data[:self.salt_len]
                 nonce = data[self.salt_len : self.salt_len + self.nonce_len]
                 ciphertext = data[self.salt_len + self.nonce_len :]
@@ -72,13 +72,13 @@ class Crypto:
                 with open(out_path, "wb") as f:
                     f.write(plaintext)    
 
-                print(f"[Decrypt] [Decrypt] Saved decrypted file to : {out_path}")   
+                print(f"[Decrypt] Saved decrypted file to : {out_path}")
+                return True
 
             except Exception as e:
                 print("[Decrypt] [Error] Incorrect password — decryption failed")
                 is_failed = True
             
-
      
 
 if __name__ == "__main__":

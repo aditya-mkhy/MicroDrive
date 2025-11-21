@@ -6,6 +6,7 @@ from network import Network
 import getpass
 from crypto import Crypto
 import time
+import platform
 
 
 class Admin:
@@ -78,7 +79,7 @@ class Admin:
             try:
                 chunk = self.network.conn.recv(chunk_size if chunk_size < remaining else remaining)
                 if not chunk:
-                    print(f"[GET] [Error] Connection closed unexpectedly while receiving file: {remote_path}")
+                    print(f"\n[GET] [Error] Connection closed unexpectedly while receiving file: {remote_path}")
                     self.network.close()
                     return
                 
@@ -108,11 +109,11 @@ class Admin:
 
                 
             except Exception as e:
-                print(f"[GET] [Error] => Failed to receive '{remote_path}' due to: {e}")
+                print(f"\n[GET] [Error] => Failed to receive '{remote_path}' due to: {e}")
                 self.network.close()
                 return
             
-        print("[GET] [info] => File received successfully.")
+        print("\n[GET] [info] => File received successfully.")
         self.crypto.decrypt_file(data=data, passwd=passwd, out_path=local_path)            
 
      
@@ -243,11 +244,6 @@ class Admin:
             elif get_pass == "-p":
                 get_pass = args[3] if len(args) > 3 else get_pass
 
-            print(f"remote => {remote}")
-            print(f"local => {local}")
-            print(f"get_pass => {get_pass}")
-            return
-                    
             return self._get_cmd(remote, local, get_pass=get_pass)
         
         
@@ -318,7 +314,7 @@ class Admin:
     # shell...
     def run_shell(self):
         print("Type 'help' for commands.\n")
-        # self.handle_commands(cmd="cwd", args=None)
+        self.handle_commands(cmd="cwd", args=None)
         print("[Admin] remote cwd set...")
 
         while True:
@@ -335,15 +331,18 @@ class Admin:
             if cmd in ("exit", "quit"):
                 break
 
+            if cmd == "cls" or cmd == "clear":
+                os.system("cls" if platform.system() == "Windows" else "clear")
+                continue
+
             # commands
             self.handle_commands(cmd, args)
 
         print("Exiting shell")
-        if self.sock:
-            try:
-                self.sock.close()
-            except Exception:
-                pass
+        try:
+            self.network.close()
+        except:
+            pass
 
 
 

@@ -211,6 +211,9 @@ class Client:
 
         elif name == "put":
             return self.handle_put(cmd)
+        
+        elif name == "get":
+            return self.handle_get(cmd)
 
         else:
             reply_msg = {"type": "result", "ok": False, "error": "unknown cmd"}
