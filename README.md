@@ -1,4 +1,4 @@
-# 📦 MicroDrive
+# MicroDrive
 
 **MicroDrive** turns an **ESP32-CAM with built-in SD card slot** into your own **secure remote drive**.  
 Files are encrypted on your PC, relayed through your EC2 server using **mutual TLS**, and stored as encrypted blobs on the ESP32 SD card.  
@@ -35,7 +35,7 @@ MicroDrive/
 │   ├── admin.py           # PC client (TLS + encryption + commands)
 │   ├── crypto.py          # AES-256-GCM encryption/decryption
 │   ├── network.py         # Framing, TLS logic
-│   ├── util.py            # # Logging, parse_command, format_size, etc. tools
+│   ├── util.py            # Logging, parse_command, format_size, etc. tools
 │   ├── certs/             # PC-side certs
 │   └── requirements.txt   # pip dependencies
 │
