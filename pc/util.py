@@ -1,10 +1,83 @@
 #First full stable release 
 import shlex
 from datetime import datetime
-
+import struct
+import json
+import os
 
 def log(*args, save = True, **kwargs):
     print(f" INFO [{datetime.now().strftime('%d-%m-%Y  %H:%M:%S')}] ", *args, **kwargs)
+
+def pack_folder(folder: str) -> bytes:
+    """
+    Walk a folder recursively and return a single blob (bytes)
+    containing all files + metadata.
+    """
+    manifest = []
+    zip_data = b""
+    
+
+    folder = os.path.abspath(folder)
+    if not os.path.isdir(folder):
+        print(f"[pack] [error] => This is not a folder..")
+        return
+
+    # collect files..
+    for root, dirs, fs in os.walk(folder):
+        for name in fs:
+            full_path = os.path.join(root, name)
+            rel_path = os.path.relpath(full_path, folder).replace("\\", "/")
+
+            with open(full_path, "rb") as f:
+                data = f.read()
+                
+            manifest.append({
+                "path": rel_path,
+                "size": len(data),
+                "from": len(zip_data)
+            })
+
+            zip_data += data
+
+    blob = b""
+    manifest_json = json.dumps(manifest).encode("utf-8")
+
+    # Manifest header + body
+    blob += struct.pack("!I", len(manifest_json))
+    blob += manifest_json
+
+    return blob + zip_data
+
+
+def unpack_blob(blob: bytes, out_folder: str) -> None:
+    """
+    Take a blob (packed by pack_folder) and recreate the folder/files
+    under out_folder.
+    """
+
+    out_folder = os.path.abspath(out_folder)
+
+    os.makedirs(out_folder, exist_ok=True)
+
+    # Read manifest length
+    (m_len,) = struct.unpack("!I", blob[0:4])
+
+    manifest_raw = blob[4: 4 + m_len]
+    manifest = json.loads(manifest_raw.decode("utf-8"))
+
+    data = blob[m_len + 4 : ]
+    for meta in manifest:
+        rel_path = meta["path"]
+        size = meta["size"]
+        from_ = meta["from"]
+
+        full_path = os.path.join(out_folder, rel_path)
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+
+        with open(full_path, "wb") as f:
+            f.write(data[from_ : from_ + size])
+
+
 
 def parse_command(line: str):
     try:
@@ -96,3 +169,8 @@ def format_time(sec: float) -> str:
 if __name__ == "__main__":
     # help_text()
     print(format_time(125))
+    p = "P:\\project"
+    b = pack_folder(p)
+    s = "C:\\Users\\noral\\Downloads"
+    unpack_blob(b, s)
+

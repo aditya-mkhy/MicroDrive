@@ -108,21 +108,22 @@ class Admin:
 
                     prev_len = len(line)
 
-                
             except Exception as e:
                 print(f"\n[GET] [Error] => Failed to receive '{remote_path}' due to: {e}")
                 self.network.close()
                 return
             
+        _, ext = os.path.splitext(remote_path)
+        is_pk = ext == ".pk"
+            
         print("\n[GET] [info] => File received successfully.")
-        self.crypto.decrypt_file(data=data, passwd=passwd, out_path=local_path)            
-
-     
+        self.crypto.decrypt_file(data=data, passwd=passwd, out_path=local_path, is_pk=True) 
 
     def _put_cmd(self, local_path: str, remote_path: str, get_pass = False):
-        if not os.path.isfile(local_path):
-            print("[PUT] => Local file does not exist:", local_path)
+        if not os.path.exists(local_path):
+            print("[PUT] => Local file or folder does not exist:", local_path)
             return
+        
         
         if os.stat(local_path).st_size > (1024 * 1024 * 1024):
             print("[PUT] [Error] => File too large. Maximum supported size is 1GB")
@@ -145,6 +146,9 @@ class Admin:
         enc_data = self.crypto.encrypt_file(local_path, passwd)
         size = len(enc_data)
         print(f"[PUT] => Encrypted size: {format_size(size)}")
+
+        if os.path.isdir(local_path):
+            remote_path = remote_path + ".pk"
 
         self.network.send_json({"type": "cmd", "name": "put", "path": remote_path, "size": size})
         conf_msg = self.network.recv_json()

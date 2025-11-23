@@ -3,6 +3,7 @@ import os
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from util import pack_folder, unpack_blob, log
 
 class Crypto:
     def __init__(self):
@@ -29,8 +30,13 @@ class Crypto:
             SALT(16) + NONCE(12) + CIPHERTEXT+TAG
         """
 
-        with open(path, "rb") as f:
-            plaintext = f.read()
+        if os.path.isdir(path):
+            log(f"[Encrypt] => Packing folder : {os.path.basename(path)}")
+            plaintext = pack_folder(path)
+
+        else:
+            with open(path, "rb") as f:
+                plaintext = f.read()
 
         salt = os.urandom(self.salt_len)
         key = self.derive_key(passwd, salt)
@@ -41,7 +47,7 @@ class Crypto:
         return salt + nonce + ciphertext
 
 
-    def decrypt_file(self, data: bytes, passwd: str, out_path: str):
+    def decrypt_file(self, data: bytes, passwd: str, out_path: str, is_pk = False):
         """
         Given SALT(16) + NONCE(12) + CIPHERTEXT+TAG, decrypt and write to file.
         """
@@ -68,6 +74,15 @@ class Crypto:
                 key = self.derive_key(passwd, salt)
                 aesgcm = AESGCM(key)
                 plaintext = aesgcm.decrypt(nonce, ciphertext, None)
+
+                if is_pk:
+                    out_path = os.path.abspath(out_path)
+                    if not os.path.isdir(out_path):
+                        out_path = os.path.dirname(out_path)
+
+                    unpack_blob(blob=plaintext, out_folder=out_path)
+                    print(f"[Decrypt] Saved decrypted Folder to : {out_path}")
+                    return
 
 
                 with open(out_path, "wb") as f:
