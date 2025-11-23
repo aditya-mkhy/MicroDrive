@@ -46,11 +46,12 @@ class Logger:
         self.path = f"{self.log_dir}/log-{self.last_num}.txt"    
             
 
-    def log(self, *args, **kwargs):
-        line = f" INFO [{loct()[2]}/{loct()[1]}/{loct()[0]} {loct()[3]}:{loct()[4]}:{loct()[5]}] " + " ".join(args)
-        print(line, **kwargs)
+    def log(self, *args, sep=" ", end="\n", **kwargs):
+        msg = sep.join(str(a) for a in args)
+        line = f" INFO [{loct()[2]}/{loct()[1]}/{loct()[0]} {loct()[3]}:{loct()[4]}:{loct()[5]}] {msg}"
+        print(line, end=end, **kwargs)
 
-        self.buffer.append(line + "\n")
+        self.buffer.append(line + end)
         if len(self.buffer) >= self.flush_limit:
             self.flush()
 
