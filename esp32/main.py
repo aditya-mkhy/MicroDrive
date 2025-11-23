@@ -19,7 +19,7 @@ import ssl
 import certs
 import gc
 from drive import Drive
-from util import log, DB, WiFi, get_filename
+from util import log, logger, DB, WiFi, get_filename
 
 
 class Client:
@@ -343,6 +343,7 @@ if __name__ == "__main__":
             client.command_loop()
         except Exception as e:
             log("[MAIN] Error in client_loop :", e)
+            logger.flush() # save all error
 
             if client.conn:
                 client.close()
