@@ -77,8 +77,7 @@ def unpack_blob(blob: bytes, out_folder: str) -> None:
         with open(full_path, "wb") as f:
             f.write(data[from_ : from_ + size])
 
-
-
+            
 def parse_command(line: str):
     try:
         parts = shlex.split(line)
@@ -173,4 +172,3 @@ if __name__ == "__main__":
     b = pack_folder(p)
     s = "C:\\Users\\noral\\Downloads"
     unpack_blob(b, s)
-
