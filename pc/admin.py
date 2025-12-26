@@ -201,7 +201,6 @@ class Admin:
                 line = f"\r[PUT] [info] ( {format_size(offset)} of {format_size(size)},  {format_size(speed)}/s,  {format_time(eta)} left )"
                 sys.stdout.write(line)
                 sys.stdout.flush()
-
                 prev_len = len(line)
 
 
