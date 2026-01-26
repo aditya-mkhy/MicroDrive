@@ -10,12 +10,22 @@ No cloud… no third-party… **your data stays yours**.
 <br>
 
 
+## Why MicroDrive?
+
+- No vendor lock-in
+- No monthly fees
+- No opaque cloud trust
+- Full cryptographic ownership
+
+<br>
+
+
 ## Features
 
 -  **ESP32-CAM as remote storage** (built-in SD slot)  
 -  **End-to-end AES-256-GCM encryption** (files encrypted on PC only)  
 -  **Mutual TLS (mTLS)** between PC ↔ EC2 ↔ ESP32  
--  **Threaded relay server** (PC ↔ ESP32 communication)  
+-  **Concurrent relay server (thread-per-connection)** (PC ↔ ESP32 communication)  
 -  Remote file operations:
   - `ls`, `cd`, `cwd`, `rm`, `mkdir`, `rmdir`
   - `put` (upload + encrypt)
@@ -180,7 +190,18 @@ All file data remains encrypted on SD card.
 | EC2 Server | Acts only as a relay; **never sees plaintext** |
 | SD Card | Stores ciphertext only |
 
-Even if EC2 or ESP32 SD card is compromised — files remain unreadable.
+- Even if EC2 or ESP32 SD card is compromised — files remain unreadable.
+- Encryption key derived from user password using a secure KDF (PBKDF2 / scrypt).
+
+<br>
+
+
+## Limitations
+
+- ESP32 has limited RAM; large files are streamed in chunks
+- Single active PC client at a time
+- Transfer speed depends on ESP32 SD card and WiFi quality
+- No file versioning or deduplication
 
 <br>
 
@@ -190,6 +211,8 @@ Even if EC2 or ESP32 SD card is compromised — files remain unreadable.
 - MicroDrive works even if ESP32 TLS is limited — AES encryption protects files.  
 - Use **NTP** on ESP32 to fix timestamps.  
 - ESP32’s built-in SD slot works perfectly with MicroPython’s `machine.SDCard(slot=1)`.
+- MicroDrive is designed for **single-user, personal storage**.
+- Not intended for multi-tenant or shared access scenarios.
 
 <br>
 
