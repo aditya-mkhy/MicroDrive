@@ -4,6 +4,9 @@
 Files are encrypted on your PC, relayed through your EC2 server using **mutual TLS**, and stored as encrypted blobs on the ESP32 SD card.  
 No cloud… no third-party… **your data stays yours**.
 
+> **Who is this for?**  
+> MicroDrive is for **developers, hackers, and privacy-focused users** who want full control over remote file storage using cheap hardware — **without trusting cloud providers**.
+
 <br>
 
 
@@ -125,7 +128,7 @@ python3 server.py 9000
 
 ```bash
 cd pc
-python3 client.py <EC2-IP> 9000
+python3 admin.py <EC2-IP> 9000
 ```
 
 You get an interactive shell:
