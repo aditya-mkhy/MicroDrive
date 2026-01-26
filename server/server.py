@@ -5,12 +5,9 @@ import threading
 import json
 import sys
 from typing import Optional, Dict
-from datetime import datetime
 import time
-
-def log(*args, save = True, **kwargs):
-    print(f" INFO [{datetime.now().strftime('%d-%m-%Y  %H:%M:%S')}] ", *args, **kwargs)
-
+from util import log
+from discovery import discovery_listener
 
 class MicroDriveRelayServer:
     def __init__(self,
@@ -62,6 +59,10 @@ class MicroDriveRelayServer:
 
  
     def serve_forever(self):
+        # UDP discovery listener
+        threading.Thread(target=discovery_listener, daemon=True).start()
+
+        # host listener
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0) as server_sock:
             server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server_sock.bind((self.host, self.port))
