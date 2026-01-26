@@ -19,8 +19,9 @@ import ssl
 import certs
 import gc
 from drive import Drive
-from util import log, logger, DB, WiFi, get_filename
+from util import log, DB, WiFi, get_filename
 
+from discovery import discover_server
 
 class Client:
     def __init__(self, host: str, port: int, mount_point = "/sd", sd_slot = 1):
@@ -31,6 +32,9 @@ class Client:
         self.wifi = WiFi()
         self.db = DB()
         self.conn: socket.socket = None
+
+    def set_host(self, host: str):
+        self.host = host
 
     def close(self):
         try:
@@ -282,6 +286,8 @@ class Client:
         gc.collect()
 
         log("[NET] Connected to relay or user")
+
+    def send_role(self):
         # Send hello
         self.send_json({"role": "esp32"})
         log("[NET] Sent role=esp32")
@@ -315,38 +321,80 @@ class Client:
 
 if __name__ == "__main__":
     # ---------- CONFIG ----------
-    host = "192.168.1.5"  
+    USE_LOCAL_DISCOVERY = True   # Enable LAN discovery for dynamic IP environments
+    DEFAULT_HOST = None          # Used only when discovery is disabled
+
     port = 9000
     mount_point = "/sd"
     sd_slot = 1
-    
-    client = Client(host, port, mount_point, sd_slot)
-    # mount sd card
-    client.drive.mount()
 
-    # change the cwd to mount_point
+    MAX_FAILS = 5    # Avoid rediscovery on transient network errors
+    connect_fail_count = 0
+
+    host = DEFAULT_HOST
+
+    # Static IP is mandatory when discovery is disabled
+    if not USE_LOCAL_DISCOVERY and not host:
+        log("[MAIN] No server IP provided")
+        raise RuntimeError("Server IP is required when discovery is disabled")
+
+    client = Client(host, port, mount_point, sd_slot)
+
+    # ---------- STORAGE SETUP ----------
+    client.drive.mount()
     client.drive._init_cwd()
+
+    # ---------- WIFI SETUP ----------
     client.wifi.ssid = client.db.get("ssid")
     client.wifi.passwd = client.db.get("passwd")
 
-    # run forever loop
+    # ---------- MAIN LOOP ----------
     while True:
-
         try:
-            status = client.wifi.connect()
-            if not status:
+            # Ensure WiFi is connected before attempting discovery or TLS
+            if not client.wifi.connect():
+                log(f"[WiFi] Reconnecting to {client.wifi.ssid}")
                 sleep(20)
-                log(f"[WiFi] Attempting to reconnect to the {client.wifi.ssid}")
                 continue
 
-            client.connect()
+            # Discover server only when needed:
+            # - first startup (no host)
+            # - repeated connection failures (possible IP change)
+            if USE_LOCAL_DISCOVERY:
+                if not host or connect_fail_count >= MAX_FAILS:
+                    log("[DISCOVERY] Searching for MicroDrive server...")
+                    host = discover_server()
+
+                    if not host:
+                        # Server may be offline or not yet available
+                        sleep(20)
+                        continue
+
+                    log(f"[DISCOVERY] Server found at {host}")
+                    client.set_host(host)
+                    connect_fail_count = 0
+
+            # Attempt TLS connection to the server
+            try:
+                client.connect()
+                connect_fail_count = 0
+            except OSError as e:
+                # Do not immediately rediscover on transient failures
+                connect_fail_count += 1
+                log(f"[NET] Connection failed ({connect_fail_count}/{MAX_FAILS}):", e)
+                sleep(5)
+                continue
+
+            # ---------- ACTIVE SESSION ----------
+            client.send_role()
             client.command_loop()
+
         except Exception as e:
-            log("[MAIN] Error in client_loop :", e)
-            logger.flush() # save all error
+            log("[MAIN] Client loop error:", e)
 
             if client.conn:
                 client.close()
 
+        # Cool-off before retrying to avoid tight reconnect loops
         log("[MAIN] Reconnecting in 10 seconds...")
         sleep(10)
